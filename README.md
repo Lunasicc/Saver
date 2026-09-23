@@ -22,6 +22,9 @@ enter everything by hand.
   rules editor.
 - **Planning**: monthly budgets (with suggestions based on your own history),
   recurring bill detection and a subscription audit.
+- **Focus on one account**: with more than one account, the switcher in the
+  top bar narrows Overview, Transactions and Planning to a single account (or
+  back to all of them). Saver remembers your choice.
 - **Accounts**: a bank connections hub (every connected bank, its health and
   when it last updated, with per-account include switches), net worth over
   time, and one place to add bank, CSV or hand-tracked accounts.

@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { BankIcon, CheckCircleIcon, FileCsvIcon, UploadSimpleIcon } from '@phosphor-icons/react';
 import { api } from '../lib/api';
+import { useAccountFocus } from '../lib/accountFocus';
 import type { Account } from '../lib/types';
 import { celebrate } from '../lib/celebrate';
 import { notifyDataChanged } from '../lib/events';
@@ -47,6 +48,9 @@ export function ImportCsv() {
   const [result, setResult] = useState<ImportResult | null>(null);
   const [importing, setImporting] = useState(false);
   const [error, setError] = useState('');
+  const { focusId } = useAccountFocus();
+  // Read once when accounts load; switching focus later shouldn't change a half-set-up import.
+  const focusRef = useRef(focusId === null ? null : String(focusId));
 
   useEffect(() => {
     api
@@ -55,7 +59,7 @@ export function ImportCsv() {
         setAccounts(list);
         setLoaded(true);
         // The Add account dialog sends people here with ?account=<id> after creating one.
-        const wanted = new URLSearchParams(window.location.search).get('account');
+        const wanted = new URLSearchParams(window.location.search).get('account') ?? focusRef.current;
         if (wanted && list.some((a) => String(a.id) === wanted)) setAccountId(wanted);
         else if (list.length === 1) setAccountId(String(list[0].id));
       })

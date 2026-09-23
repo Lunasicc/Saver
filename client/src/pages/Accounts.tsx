@@ -3,19 +3,14 @@ import { useSearchParams } from 'react-router-dom';
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import {
   ArrowsClockwiseIcon,
-  BankIcon,
   CameraIcon,
   ChartLineUpIcon,
   CheckIcon,
-  CreditCardIcon,
-  PiggyBankIcon,
+  CrosshairIcon,
   PlusIcon,
-  ScalesIcon,
   TrashIcon,
-  TrendUpIcon,
   WalletIcon,
   WarningCircleIcon,
-  type Icon,
 } from '@phosphor-icons/react';
 import { api } from '../lib/api';
 import type { Account, NetWorthSnapshot, Summary } from '../lib/types';
@@ -31,14 +26,8 @@ import { Skeleton, SkeletonList } from '../components/Skeleton';
 import { ConnectionsHub } from '../components/bank/ConnectionsHub';
 import { SetupWizard } from '../components/bank/SetupWizard';
 import { AddAccountDialog, type AddMode } from '../components/bank/AddAccountDialog';
-
-const TYPE_ICONS: Record<string, Icon> = {
-  checking: BankIcon,
-  savings: PiggyBankIcon,
-  credit: CreditCardIcon,
-  loan: ScalesIcon,
-  investment: TrendUpIcon,
-};
+import { AccountTypeIcon } from '../components/AccountTypeIcon';
+import { syncAccounts, useAccountFocus } from '../lib/accountFocus';
 
 function capitalize(s: string) {
   return s.charAt(0).toUpperCase() + s.slice(1);
@@ -56,6 +45,7 @@ export function Accounts() {
   const [wizardOpen, setWizardOpen] = useState(false);
   const [connectRequest, setConnectRequest] = useState(0);
   const [params, setParams] = useSearchParams();
+  const { focusId, setFocus } = useAccountFocus();
 
   const load = useCallback(async () => {
     setError(null);
@@ -66,6 +56,7 @@ export function Accounts() {
         api.get<NetWorthSnapshot[]>('/reports/net-worth'),
       ]);
       setAccounts(list);
+      syncAccounts(list);
       setSummary(sum);
       setHistory(nw);
     } catch (err) {
@@ -239,11 +230,11 @@ export function Accounts() {
             ) : (
               <div style={{ padding: '10px 0 6px' }}>
                 {accounts.map((a) => {
-                  const Glyph = TYPE_ICONS[a.type] ?? WalletIcon;
+                  const focused = focusId === a.id;
                   return (
-                    <div key={a.id} className="tx-row">
+                    <div key={a.id} className={`tx-row account-row${focused ? ' account-row--focused' : ''}`}>
                       <span className="cat-icon" style={{ width: 34, height: 34, background: 'var(--surface-3)', color: 'var(--text-2)' }}>
-                        <Glyph size={17} weight="duotone" />
+                        <AccountTypeIcon type={a.type} size={17} weight="duotone" />
                       </span>
                       <div className="list-main">
                         <div className="list-title">{a.name}</div>
@@ -269,9 +260,22 @@ export function Accounts() {
                       <span className={`tx-amount amount${a.is_liability ? ' amount--bad' : ''}`} style={{ fontSize: 15 }}>
                         <AnimatedNumber value={a.current_balance} currency={a.currency} />
                       </span>
-                      <button className="btn btn-icon danger" aria-label={`Delete ${a.name}`} title="Delete account" onClick={() => handleDelete(a)}>
-                        <TrashIcon size={15} />
-                      </button>
+                      <div className="row-actions">
+                        {accounts.length > 1 && (
+                          <button
+                            className={`btn btn-icon${focused ? ' btn-icon--on' : ''}`}
+                            aria-pressed={focused}
+                            aria-label={focused ? `Stop focusing on ${a.name}` : `Focus the app on ${a.name}`}
+                            title={focused ? 'Show all accounts' : 'Focus the app on this account'}
+                            onClick={() => setFocus(focused ? null : a.id)}
+                          >
+                            <CrosshairIcon size={15} weight={focused ? 'bold' : 'regular'} />
+                          </button>
+                        )}
+                        <button className="btn btn-icon danger" aria-label={`Delete ${a.name}`} title="Delete account" onClick={() => handleDelete(a)}>
+                          <TrashIcon size={15} />
+                        </button>
+                      </div>
                     </div>
                   );
                 })}

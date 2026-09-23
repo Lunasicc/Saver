@@ -1,5 +1,6 @@
 import { ListBulletsIcon, RobotIcon, UploadSimpleIcon } from '@phosphor-icons/react';
 import { Tabs, useTab, type TabDef } from '../components/Tabs';
+import { FocusNote } from '../components/AccountSwitcher';
 import { TransactionsFeed } from './Transactions';
 import { ImportCsv } from './ImportCsv';
 import { MerchantRules } from './MerchantRules';
@@ -18,6 +19,7 @@ export function TransactionsHub() {
         <div>
           <h1 className="page-title">Transactions</h1>
           <p className="page-sub">Every dollar in and out, sorted by business and category.</p>
+          {tab !== 'rules' && <FocusNote />}
         </div>
         <Tabs tabs={TABS} active={tab} onSelect={setTab} label="Transactions sections" />
       </header>

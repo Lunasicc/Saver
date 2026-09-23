@@ -16,6 +16,7 @@ import { notifyDataChanged, onDataChanged } from './lib/events';
 import { APP_NAME } from './lib/brand';
 import { describeSync, type AkahuStatus, type AutoSyncResult, type SyncResult } from './lib/akahu';
 import { timeAgo } from './lib/format';
+import { AccountSwitcher } from './components/AccountSwitcher';
 
 const NAV_ITEMS = [
   { to: '/', label: 'Overview', icon: ChartDonutIcon, end: true },
@@ -186,6 +187,7 @@ function App() {
             ))}
           </nav>
           <div className="topbar-actions">
+            <AccountSwitcher />
             <SyncButton />
           </div>
         </div>

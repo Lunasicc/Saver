@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { db } from '../db/index.js';
 import { detectRecurringBills } from '../lib/insights.js';
+import { accountClause, parseAccountFilter } from '../lib/accountFilter.js';
 
 const router = Router();
 
@@ -15,7 +16,9 @@ router.get('/detect', (req, res) => {
   if (!Number.isFinite(minOccurrences) || minOccurrences < 2) {
     return res.status(400).json({ error: 'min_occurrences must be at least 2' });
   }
-  const candidates = detectRecurringBills({ months, minOccurrences });
+  const { account, error } = parseAccountFilter(req.query);
+  if (error) return res.status(400).json({ error });
+  const candidates = detectRecurringBills({ months, minOccurrences, account });
   res.json({
     months,
     minOccurrences,
@@ -68,16 +71,19 @@ router.post('/detect/apply', (req, res) => {
   res.status(201).json({ created, skipped });
 });
 
-router.get('/', (_req, res) => {
+router.get('/', (req, res) => {
+  const { account, error } = parseAccountFilter(req.query);
+  if (error) return res.status(400).json({ error });
   const rows = db
     .prepare(
       `SELECT rb.*, c.name AS category_name, c.icon AS category_icon, c.color AS category_color, a.name AS account_name
        FROM recurring_bills rb
        LEFT JOIN categories c ON c.id = rb.category_id
        LEFT JOIN accounts a ON a.id = rb.account_id
+       WHERE ${accountClause('rb.account_id')}
        ORDER BY rb.due_day ASC`
     )
-    .all();
+    .all({ account });
   res.json(rows);
 });
 

@@ -1,11 +1,22 @@
 import { Router } from 'express';
 import { db } from '../db/index.js';
 import { todayLocal, currentMonthLocal, shiftMonth, isValidMonth } from '../lib/dates.js';
+import { accountClause, parseAccountFilter } from '../lib/accountFilter.js';
 
 const router = Router();
 
-function currentNetWorth() {
-  const rows = db.prepare('SELECT current_balance, is_liability FROM accounts').all();
+// Every report here accepts ?account_id= to focus on a single account.
+router.use((req, res, next) => {
+  const { account, error } = parseAccountFilter(req.query);
+  if (error) return res.status(400).json({ error });
+  res.locals.account = account;
+  next();
+});
+
+function currentNetWorth(account = null) {
+  const rows = db
+    .prepare(`SELECT current_balance, is_liability FROM accounts WHERE ${accountClause('id')}`)
+    .all({ account });
   let assets = 0;
   let liabilities = 0;
   for (const r of rows) {
@@ -16,16 +27,10 @@ function currentNetWorth() {
 }
 
 router.get('/summary', (_req, res) => {
-  const { assets, liabilities, netWorth } = currentNetWorth();
+  const { account } = res.locals;
+  const { assets, liabilities, netWorth } = currentNetWorth(account);
   const month = currentMonthLocal();
-  const { income = 0, spend = 0 } =
-    db
-      .prepare(
-        `SELECT COALESCE(SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END), 0) AS income,
-                COALESCE(SUM(CASE WHEN amount < 0 THEN -amount ELSE 0 END), 0) AS spend
-         FROM transactions WHERE strftime('%Y-%m', date) = ?`
-      )
-      .get(month) || {};
+  const { income, spend } = monthTotals(month, account);
   res.json({ assets, liabilities, netWorth, month, income, spend });
 });
 
@@ -36,10 +41,10 @@ router.get('/spending-by-category', (req, res) => {
     .prepare(
       `SELECT c.id AS category_id, c.name, c.color, c.icon, COALESCE(SUM(-t.amount), 0) AS total
        FROM transactions t JOIN categories c ON c.id = t.category_id
-       WHERE strftime('%Y-%m', t.date) = ? AND t.amount < 0
+       WHERE strftime('%Y-%m', t.date) = @month AND t.amount < 0 AND ${accountClause('t.account_id')}
        GROUP BY c.id ORDER BY total DESC`
     )
-    .all(month);
+    .all({ month, account: res.locals.account });
   res.json(rows);
 });
 
@@ -51,11 +56,12 @@ router.get('/trends', (req, res) => {
               COALESCE(SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END), 0) AS income,
               COALESCE(SUM(CASE WHEN amount < 0 THEN -amount ELSE 0 END), 0) AS spend
        FROM transactions
+       WHERE ${accountClause()}
        GROUP BY month
        ORDER BY month DESC
-       LIMIT ?`
+       LIMIT @months`
     )
-    .all(months);
+    .all({ months, account: res.locals.account });
   res.json(rows.reverse());
 });
 
@@ -63,15 +69,15 @@ function prevMonth(month) {
   return shiftMonth(month, -1);
 }
 
-function monthTotals(month) {
+function monthTotals(month, account = null) {
   return (
     db
       .prepare(
         `SELECT COALESCE(SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END), 0) AS income,
                 COALESCE(SUM(CASE WHEN amount < 0 THEN -amount ELSE 0 END), 0) AS spend
-         FROM transactions WHERE strftime('%Y-%m', date) = ?`
+         FROM transactions WHERE strftime('%Y-%m', date) = @month AND ${accountClause()}`
       )
-      .get(month) || { income: 0, spend: 0 }
+      .get({ month, account }) || { income: 0, spend: 0 }
   );
 }
 
@@ -80,24 +86,26 @@ function monthTotals(month) {
 router.get('/monthly-snapshot', (req, res) => {
   const month = req.query.month || currentMonthLocal();
   if (!isValidMonth(month)) return res.status(400).json({ error: 'month must be in YYYY-MM format' });
+  const { account } = res.locals;
 
   const categories = db
     .prepare(
       `SELECT c.id AS category_id, c.name, c.color, c.icon,
               COALESCE(SUM(-t.amount), 0) AS total, COUNT(*) AS count
        FROM transactions t JOIN categories c ON c.id = t.category_id
-       WHERE strftime('%Y-%m', t.date) = ? AND t.amount < 0
+       WHERE strftime('%Y-%m', t.date) = @month AND t.amount < 0 AND ${accountClause('t.account_id')}
        GROUP BY c.id ORDER BY total DESC`
     )
-    .all(month);
+    .all({ month, account });
 
   const uncategorizedSpend =
     db
       .prepare(
         `SELECT COALESCE(SUM(-amount), 0) AS total, COUNT(*) AS count
-         FROM transactions WHERE strftime('%Y-%m', date) = ? AND amount < 0 AND category_id IS NULL`
+         FROM transactions
+         WHERE strftime('%Y-%m', date) = @month AND amount < 0 AND category_id IS NULL AND ${accountClause()}`
       )
-      .get(month) || { total: 0, count: 0 };
+      .get({ month, account }) || { total: 0, count: 0 };
 
   // NOTE: group by the full expression, not the `merchant` alias. SQLite resolves a
   // bare `merchant` in GROUP BY to the underlying (nullable) column, which collapses
@@ -107,18 +115,18 @@ router.get('/monthly-snapshot', (req, res) => {
       `SELECT COALESCE(NULLIF(merchant, ''), description) AS merchant,
               COALESCE(SUM(-amount), 0) AS total, COUNT(*) AS count
        FROM transactions
-       WHERE strftime('%Y-%m', date) = ? AND amount < 0
+       WHERE strftime('%Y-%m', date) = @month AND amount < 0 AND ${accountClause()}
        GROUP BY COALESCE(NULLIF(merchant, ''), description)
        ORDER BY total DESC LIMIT 25`
     )
-    .all(month);
+    .all({ month, account });
 
-  const totals = monthTotals(month);
+  const totals = monthTotals(month, account);
   const totalSpend = categories.reduce((sum, c) => sum + c.total, 0) + uncategorizedSpend.total;
   const withPct = categories.map((c) => ({ ...c, pct: totalSpend > 0 ? c.total / totalSpend : 0 }));
 
   const previousMonth = prevMonth(month);
-  const prevTotals = monthTotals(previousMonth);
+  const prevTotals = monthTotals(previousMonth, account);
 
   res.json({
     month,
@@ -167,11 +175,11 @@ router.get('/subscriptions', (req, res) => {
               MAX(t.date) AS last_charged,
               MIN(t.date) AS first_charged
        FROM transactions t JOIN categories c ON c.id = t.category_id
-       WHERE c.name = 'Subscriptions' AND t.amount < 0 AND t.date >= ?
+       WHERE c.name = 'Subscriptions' AND t.amount < 0 AND t.date >= @since AND ${accountClause('t.account_id')}
        GROUP BY COALESCE(NULLIF(t.merchant, ''), t.description), c.id
        ORDER BY total_spent DESC`
     )
-    .all(sinceStr);
+    .all({ since: sinceStr, account: res.locals.account });
 
   const monthly = rows.map((r) => ({
     ...r,

@@ -14,6 +14,7 @@ import { api } from '../lib/api';
 import type { Account, Category, Transaction, TrendPoint } from '../lib/types';
 import { dayLabel, formatMoney, formatSigned, monthLong, monthRange, today } from '../lib/format';
 import { onDataChanged } from '../lib/events';
+import { useAccountFocus } from '../lib/accountFocus';
 import { CategoryIcon } from '../components/CategoryIcon';
 import { EmptyState } from '../components/EmptyState';
 import { ErrorBanner, SuccessNotice } from '../components/ErrorBanner';
@@ -27,7 +28,9 @@ export function TransactionsFeed() {
   const [params, setParams] = useSearchParams();
   const month = MONTH_RE.test(params.get('month') ?? '') ? params.get('month')! : '';
   const category = params.get('category') ?? '';
-  const account = params.get('account') ?? '';
+  const legacyAccount = params.get('account');
+  const { focusId, setFocus } = useAccountFocus();
+  const account = focusId === null ? '' : String(focusId);
   const q = params.get('q') ?? '';
 
   const [transactions, setTransactions] = useState<Transaction[] | null>(null);
@@ -56,6 +59,14 @@ export function TransactionsFeed() {
     },
     [setParams]
   );
+
+  // Old links used ?account=; fold them into the app-wide focus.
+  useEffect(() => {
+    if (!legacyAccount) return;
+    const id = Number(legacyAccount);
+    if (Number.isInteger(id) && id > 0) setFocus(id);
+    setParam('account', '');
+  }, [legacyAccount, setFocus, setParam]);
 
   // Debounce typing into the URL so every keystroke doesn't hit the API.
   useEffect(() => {
@@ -211,7 +222,7 @@ export function TransactionsFeed() {
           ))}
         </select>
         {accounts.length > 1 && (
-          <select aria-label="Account" value={account} onChange={(e) => setParam('account', e.target.value)}>
+          <select aria-label="Account" value={account} onChange={(e) => setFocus(e.target.value ? Number(e.target.value) : null)}>
             <option value="">All accounts</option>
             {accounts.map((a) => (
               <option key={a.id} value={a.id}>
@@ -380,8 +391,9 @@ function AddTransactionForm({
   onSaved: () => void;
   onError: (message: string) => void;
 }) {
+  const { focusId } = useAccountFocus();
   const [form, setForm] = useState({
-    account_id: accounts.length === 1 ? String(accounts[0].id) : '',
+    account_id: accounts.length === 1 ? String(accounts[0].id) : focusId !== null ? String(focusId) : '',
     date: today(),
     description: '',
     amount: '',

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { TelevisionIcon } from '@phosphor-icons/react';
 import { api } from '../lib/api';
+import { useAccountFocus, withAccount } from '../lib/accountFocus';
 import type { SubscriptionsReport } from '../lib/types';
 import { formatDate, formatMoney } from '../lib/format';
 import { AnimatedNumber } from '../components/AnimatedNumber';
@@ -14,16 +15,17 @@ export function Subscriptions() {
   const [months, setMonths] = useState(6);
   const [report, setReport] = useState<SubscriptionsReport | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { focusId } = useAccountFocus();
 
   const load = useCallback(() => {
     setError(null);
     // Clear stale data so a slow reload can't show the previous period's numbers.
     setReport(null);
     api
-      .get<SubscriptionsReport>(`/reports/subscriptions?months=${months}`)
+      .get<SubscriptionsReport>(withAccount(`/reports/subscriptions?months=${months}`, focusId))
       .then(setReport)
       .catch((err: Error) => setError(err.message));
-  }, [months]);
+  }, [months, focusId]);
 
   useEffect(load, [load]);
 

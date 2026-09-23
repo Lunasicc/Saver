@@ -30,6 +30,8 @@ import {
 } from '../lib/format';
 import { daysUntilDue, dueLabel, monthlyEquivalent } from '../lib/bills';
 import { onDataChanged } from '../lib/events';
+import { useAccountFocus, withAccount } from '../lib/accountFocus';
+import { FocusNote } from '../components/AccountSwitcher';
 import { AnimatedNumber } from '../components/AnimatedNumber';
 import { CategoryIcon } from '../components/CategoryIcon';
 import { ChartTooltip } from '../components/ChartTooltip';
@@ -47,6 +49,7 @@ type Data = {
   summary: Summary;
   bills: RecurringBill[];
   accountCount: number;
+  focusId: number | null;
 };
 
 const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
@@ -64,6 +67,7 @@ export function Overview() {
   const [data, setData] = useState<Data | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showAllMerchants, setShowAllMerchants] = useState(false);
+  const { focusId, focus } = useAccountFocus();
 
   const setMonth = useCallback(
     (next: string) => {
@@ -79,18 +83,18 @@ export function Overview() {
     setError(null);
     try {
       const [snapshot, budgets, trends, summary, bills, accounts] = await Promise.all([
-        api.get<MonthlySnapshot>(`/reports/monthly-snapshot?month=${month}`),
-        api.get<Budget[]>(`/budgets?month=${month}`),
-        api.get<TrendPoint[]>('/reports/trends?months=36'),
-        api.get<Summary>('/reports/summary'),
-        api.get<RecurringBill[]>('/recurring-bills'),
+        api.get<MonthlySnapshot>(withAccount(`/reports/monthly-snapshot?month=${month}`, focusId)),
+        api.get<Budget[]>(withAccount(`/budgets?month=${month}`, focusId)),
+        api.get<TrendPoint[]>(withAccount('/reports/trends?months=36', focusId)),
+        api.get<Summary>(withAccount('/reports/summary', focusId)),
+        api.get<RecurringBill[]>(withAccount('/recurring-bills', focusId)),
         api.get<Account[]>('/accounts'),
       ]);
-      setData({ snapshot, budgets, trends, summary, bills, accountCount: accounts.length });
+      setData({ snapshot, budgets, trends, summary, bills, accountCount: accounts.length, focusId });
     } catch (err) {
       setError((err as Error).message);
     }
-  }, [month]);
+  }, [month, focusId]);
 
   useEffect(() => {
     load();
@@ -98,7 +102,7 @@ export function Overview() {
   useEffect(() => onDataChanged(load), [load]);
 
   const isCurrent = month === currentMonth();
-  const loading = !data || data.snapshot.month !== month;
+  const loading = !data || data.snapshot.month !== month || data.focusId !== focusId;
 
   return (
     <div>
@@ -108,6 +112,7 @@ export function Overview() {
           <p className="page-sub">
             {isCurrent ? 'How this month is going so far.' : `How ${monthLong(month)} played out.`}
           </p>
+          <FocusNote />
         </div>
         <MonthStepper month={month} onChange={setMonth} />
       </header>
@@ -120,7 +125,7 @@ export function Overview() {
         <Welcome />
       ) : (
         <div className="stack" style={{ opacity: loading ? 0.55 : 1, transition: 'opacity 0.2s ease' }}>
-          <Hero data={data} month={month} isCurrent={isCurrent} />
+          <Hero data={data} month={month} isCurrent={isCurrent} focusName={focus?.name ?? null} />
           <Attention data={data} month={month} />
           <div className="split">
             <CategoriesPanel data={data} month={month} />
@@ -142,7 +147,17 @@ export function Overview() {
 
 /* ---------- Hero: how much went out, and how that's tracking ---------- */
 
-function Hero({ data, month, isCurrent }: { data: Data; month: string; isCurrent: boolean }) {
+function Hero({
+  data,
+  month,
+  isCurrent,
+  focusName,
+}: {
+  data: Data;
+  month: string;
+  isCurrent: boolean;
+  focusName: string | null;
+}) {
   const { snapshot, budgets, summary, bills } = data;
   const budgetTotal = budgets.reduce((s, b) => s + b.amount, 0);
   const budgetSpent = budgets.reduce((s, b) => s + b.spent, 0);
@@ -223,10 +238,10 @@ function Hero({ data, month, isCurrent }: { data: Data; month: string; isCurrent
           </div>
         </div>
         <div className="stat">
-          <div className="stat-label">Net worth</div>
-          <div className="stat-value">{formatMoneyWhole(summary.netWorth)}</div>
+          <div className="stat-label">{focusName ? 'Balance' : 'Net worth'}</div>
+          <div className={`stat-value ${summary.netWorth < 0 ? 'amount--bad' : ''}`}>{formatMoneyWhole(summary.netWorth)}</div>
           <div className="small faint" style={{ marginTop: 4 }}>
-            Across all accounts, today
+            {focusName ? `${focusName}, today` : 'Across all accounts, today'}
           </div>
         </div>
         <div className="stat">

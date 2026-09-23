@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { db } from '../db/index.js';
 import { suggestBudgets } from '../lib/insights.js';
 import { isValidMonth } from '../lib/dates.js';
+import { accountClause, parseAccountFilter } from '../lib/accountFilter.js';
 
 const router = Router();
 
@@ -15,7 +16,9 @@ router.get('/suggestions', (req, res) => {
   if (!Number.isFinite(lookback) || lookback < 1 || lookback > 24) {
     return res.status(400).json({ error: 'lookback must be between 1 and 24' });
   }
-  res.json(suggestBudgets({ month, lookback }));
+  const { account, error } = parseAccountFilter(req.query);
+  if (error) return res.status(400).json({ error });
+  res.json(suggestBudgets({ month, lookback, account }));
 });
 
 // Bulk-applies accepted budget suggestions for a month.
@@ -57,6 +60,8 @@ router.get('/', (req, res) => {
   const { month } = req.query;
   if (!month) return res.status(400).json({ error: 'month (YYYY-MM) query param is required' });
   if (!isValidMonth(month)) return res.status(400).json({ error: 'month must be in YYYY-MM format' });
+  const { account, error } = parseAccountFilter(req.query);
+  if (error) return res.status(400).json({ error });
 
   const budgets = db
     .prepare(
@@ -67,14 +72,15 @@ router.get('/', (req, res) => {
     )
     .all(month);
 
+  // Budgets are shared across accounts; only the spend against them follows the focus.
   const spendRows = db
     .prepare(
       `SELECT category_id, COALESCE(SUM(-amount), 0) AS spent
        FROM transactions
-       WHERE strftime('%Y-%m', date) = ? AND amount < 0
+       WHERE strftime('%Y-%m', date) = @month AND amount < 0 AND ${accountClause()}
        GROUP BY category_id`
     )
-    .all(month);
+    .all({ month, account });
   // Round to cents: amounts are stored as REAL, so a summed total can land a
   // fraction of a cent above the budget and falsely report "over budget".
   const spendByCategory = Object.fromEntries(

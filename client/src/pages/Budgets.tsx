@@ -7,6 +7,7 @@ import type { Budget, BudgetSuggestion, BudgetSuggestionsReport, Category, Categ
 import { currentMonth, daysInMonth, formatMoney, formatMoneyWhole, monthLabel, monthLong, shiftMonth, today } from '../lib/format';
 import { celebrate } from '../lib/celebrate';
 import { onDataChanged } from '../lib/events';
+import { useAccountFocus, withAccount } from '../lib/accountFocus';
 import { CategoryIcon } from '../components/CategoryIcon';
 import { EmptyState } from '../components/EmptyState';
 import { ErrorBanner } from '../components/ErrorBanner';
@@ -39,6 +40,7 @@ export function Budgets() {
   const [lookback, setLookback] = useState(3);
   const [selected, setSelected] = useState<Record<number, number>>({});
   const [suggesting, setSuggesting] = useState(false);
+  const { focusId } = useAccountFocus();
   const [applying, setApplying] = useState(false);
 
   function setMonth(next: string) {
@@ -53,9 +55,9 @@ export function Budgets() {
     setError(null);
     try {
       const [current, previous, spend] = await Promise.all([
-        api.get<Budget[]>(`/budgets?month=${month}`),
+        api.get<Budget[]>(withAccount(`/budgets?month=${month}`, focusId)),
         api.get<Budget[]>(`/budgets?month=${shiftMonth(month, -1)}`),
-        api.get<CategorySpend[]>(`/reports/spending-by-category?month=${month}`),
+        api.get<CategorySpend[]>(withAccount(`/reports/spending-by-category?month=${month}`, focusId)),
       ]);
       setBudgets(current);
       setPreviousBudgets(previous);
@@ -64,7 +66,7 @@ export function Budgets() {
       setBudgets([]);
       setError((err as Error).message);
     }
-  }, [month]);
+  }, [month, focusId]);
 
   useEffect(() => {
     api

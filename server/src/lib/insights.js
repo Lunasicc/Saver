@@ -1,6 +1,7 @@
 import { db } from '../db/index.js';
 import { deriveMerchantName } from './categorize.js';
 import { currentMonthLocal, shiftMonth } from './dates.js';
+import { accountClause } from './accountFilter.js';
 
 // Categories that represent money moving around rather than real spending.
 // They are still returned by the helpers below, but flagged as not recommended
@@ -61,7 +62,7 @@ export function classifyFrequency(medianGapDays) {
  * `amount_varies` flag is set — because real bills like loan repayments and power
  * bills fluctuate.
  */
-export function detectRecurringBills({ months = 12, minOccurrences = 3 } = {}) {
+export function detectRecurringBills({ months = 12, minOccurrences = 3, account = null } = {}) {
   const sinceMonth = shiftMonth(currentMonthLocal(), -Math.max(1, months) + 1);
   const rows = db
     .prepare(
@@ -69,10 +70,10 @@ export function detectRecurringBills({ months = 12, minOccurrences = 3 } = {}) {
               t.category_id, c.name AS category_name, c.icon AS category_icon, c.color AS category_color
        FROM transactions t
        LEFT JOIN categories c ON c.id = t.category_id
-       WHERE t.amount < 0 AND t.date >= ?
+       WHERE t.amount < 0 AND t.date >= @since AND ${accountClause('t.account_id')}
        ORDER BY t.date ASC`
     )
-    .all(monthStart(sinceMonth));
+    .all({ since: monthStart(sinceMonth), account });
 
   const groups = new Map();
   for (const row of rows) {
@@ -185,13 +186,14 @@ export function monthlyEquivalent(amount, frequency) {
  * Uses the median monthly spend rather than the mean so a single unusual month
  * doesn't skew the target, then rounds up to the nearest $10 for a tidy number.
  */
-export function suggestBudgets({ month, lookback = 3 } = {}) {
+export function suggestBudgets({ month, lookback = 3, account = null } = {}) {
   const targetMonth = month || currentMonthLocal();
   const windowSize = Math.max(1, Math.min(24, Number(lookback) || 3));
   const monthsInWindow = [];
   for (let i = windowSize; i >= 1; i -= 1) monthsInWindow.push(shiftMonth(targetMonth, -i));
 
-  const placeholders = monthsInWindow.map(() => '?').join(', ');
+  const monthParams = Object.fromEntries(monthsInWindow.map((m, i) => [`m${i}`, m]));
+  const placeholders = Object.keys(monthParams).map((k) => `@${k}`).join(', ');
   const rows = db
     .prepare(
       `SELECT c.id AS category_id, c.name, c.icon, c.color,
@@ -199,9 +201,10 @@ export function suggestBudgets({ month, lookback = 3 } = {}) {
               COALESCE(SUM(-t.amount), 0) AS total
        FROM transactions t JOIN categories c ON c.id = t.category_id
        WHERE t.amount < 0 AND c.is_income = 0 AND strftime('%Y-%m', t.date) IN (${placeholders})
+         AND ${accountClause('t.account_id')}
        GROUP BY c.id, month`
     )
-    .all(...monthsInWindow);
+    .all({ ...monthParams, account });
 
   const existing = new Map(
     db

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { CalendarCheckIcon, MagnifyingGlassIcon, PlusIcon, TrashIcon, XIcon } from '@phosphor-icons/react';
 import { api } from '../lib/api';
+import { useAccountFocus, withAccount } from '../lib/accountFocus';
 import type { Account, Category, RecurringBill, RecurringCandidate, RecurringDetectionReport } from '../lib/types';
 import { formatDate, formatMoney, formatMoneyWhole, ordinal } from '../lib/format';
 import { daysUntilDue, dueLabel, monthlyEquivalent } from '../lib/bills';
@@ -36,17 +37,19 @@ export function RecurringBills() {
   const [detecting, setDetecting] = useState(false);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [applying, setApplying] = useState(false);
+  const { focusId } = useAccountFocus();
 
   const load = useCallback(() => {
     setError(null);
+    setDetection(null);
     api
-      .get<RecurringBill[]>('/recurring-bills')
+      .get<RecurringBill[]>(withAccount('/recurring-bills', focusId))
       .then(setBills)
       .catch((err: Error) => {
         setBills([]);
         setError(err.message);
       });
-  }, []);
+  }, [focusId]);
 
   useEffect(() => {
     api
@@ -89,7 +92,7 @@ export function RecurringBills() {
     setDetecting(true);
     setError(null);
     try {
-      const report = await api.get<RecurringDetectionReport>('/recurring-bills/detect?months=12');
+      const report = await api.get<RecurringDetectionReport>(withAccount('/recurring-bills/detect?months=12', focusId));
       setDetection(report);
       // Pre-select confident, not-yet-tracked candidates.
       setSelected(
@@ -167,7 +170,14 @@ export function RecurringBills() {
             {detection ? <XIcon size={15} /> : <MagnifyingGlassIcon size={15} />}
             {detecting ? 'Scanning…' : detection ? 'Hide results' : 'Find recurring charges'}
           </button>
-          <button className="btn btn-primary" onClick={() => setShowForm((s) => !s)} aria-expanded={showForm}>
+          <button
+            className="btn btn-primary"
+            onClick={() => {
+              if (!showForm && !form.account_id && focusId !== null) setForm({ ...form, account_id: String(focusId) });
+              setShowForm((s) => !s);
+            }}
+            aria-expanded={showForm}
+          >
             {showForm ? <XIcon size={15} weight="bold" /> : <PlusIcon size={15} weight="bold" />}
             {showForm ? 'Close' : 'Add bill'}
           </button>
