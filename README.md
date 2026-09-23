@@ -15,7 +15,8 @@ enter everything by hand.
   spending by category and by business, a 12-month cash-flow chart and
   upcoming bills.
 - **Automatic categorization**: more than 100 built-in keyword rules for
-  common NZ businesses (supermarkets, fuel, power, telcos, streaming and more).
+  common NZ businesses (supermarkets, fuel, power, telcos, streaming,
+  investing and KiwiSaver platforms like Sharesies, and more).
   When you re-categorize a transaction, Saver learns it for next time.
 - **Transactions**: a searchable feed you can filter by month, category or
   account, with inline re-categorizing, CSV import with column mapping, and a

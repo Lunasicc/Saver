@@ -3,6 +3,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { DATA_DIR, getSeedRules } from '../lib/seedRules.js';
+import { normalizeForMatch } from '../lib/categorize.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const dataDir = DATA_DIR;
@@ -61,6 +62,7 @@ const DEFAULT_CATEGORIES = [
   { name: 'Travel', icon: '✈️', color: '#06b6d4' },
   { name: 'Insurance', icon: '🛡️', color: '#0ea5e9' },
   { name: 'Loan Repayment', icon: '🏦', color: '#f59e0b' },
+  { name: 'Investments & Finances', icon: '📈', color: '#6366f1' },
   { name: 'Transfers & Fees', icon: '🔁', color: '#94a3b8' },
   { name: 'Income', icon: '💵', color: '#10b981', is_income: 1 },
   { name: 'Other', icon: '🔖', color: '#64748b' },
@@ -87,3 +89,36 @@ const seedRules = db.transaction((rows) => {
   }
 });
 seedRules(getSeedRules());
+
+// Investments & Finances arrived after people had already filed things like
+// Sharesies top-ups under "Other" (or left them uncategorized). Move those over
+// once; anything the user files under Other afterwards is left alone.
+if (!db.prepare("SELECT 1 FROM settings WHERE key = 'seeded_investments'").get()) {
+  const investments = db.prepare("SELECT id FROM categories WHERE name = 'Investments & Finances'").get();
+  const other = db.prepare("SELECT id FROM categories WHERE name = 'Other'").get();
+  const patterns = getSeedRules().filter((r) => r.category === 'Investments & Finances');
+  const matchOf = (text) => {
+    const norm = normalizeForMatch(text);
+    return patterns.find((p) => norm.includes(p.pattern));
+  };
+  db.transaction(() => {
+    if (investments) {
+      const moveTx = db.prepare('UPDATE transactions SET category_id = ?, merchant = ? WHERE id = ?');
+      const candidates = db
+        .prepare('SELECT id, description FROM transactions WHERE category_id IS NULL OR category_id = ?')
+        .all(other?.id ?? -1);
+      for (const tx of candidates) {
+        const match = matchOf(tx.description);
+        if (match) moveTx.run(investments.id, match.merchant, tx.id);
+      }
+      const moveRule = db.prepare('UPDATE merchant_rules SET category_id = ? WHERE id = ?');
+      const learned = db
+        .prepare("SELECT id, pattern FROM merchant_rules WHERE match_type = 'exact' AND category_id = ?")
+        .all(other?.id ?? -1);
+      for (const rule of learned) {
+        if (matchOf(rule.pattern)) moveRule.run(investments.id, rule.id);
+      }
+    }
+    db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('seeded_investments', '1')").run();
+  })();
+}

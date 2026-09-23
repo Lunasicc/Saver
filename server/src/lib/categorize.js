@@ -142,6 +142,25 @@ export const DEFAULT_MERCHANT_RULES = [
   { pattern: 'hpirepayment', merchant: 'Loan Repayment', category: 'Loan Repayment' },
   { pattern: 'personalloan', merchant: 'Loan Repayment', category: 'Loan Repayment' },
 
+  // Investing, KiwiSaver, savings products & crypto
+  { pattern: 'sharesies', merchant: 'Sharesies', category: 'Investments & Finances' },
+  { pattern: 'kernelwealth', merchant: 'Kernel', category: 'Investments & Finances' },
+  { pattern: 'hatchinvest', merchant: 'Hatch', category: 'Investments & Finances' },
+  { pattern: 'investnow', merchant: 'InvestNow', category: 'Investments & Finances' },
+  { pattern: 'simplicity', merchant: 'Simplicity', category: 'Investments & Finances' },
+  { pattern: 'smartshares', merchant: 'Smartshares', category: 'Investments & Finances' },
+  { pattern: 'superlife', merchant: 'SuperLife', category: 'Investments & Finances' },
+  { pattern: 'kiwisaver', merchant: 'KiwiSaver', category: 'Investments & Finances' },
+  { pattern: 'milfordasset', merchant: 'Milford', category: 'Investments & Finances' },
+  { pattern: 'fisherfunds', merchant: 'Fisher Funds', category: 'Investments & Finances' },
+  { pattern: 'generatewealth', merchant: 'Generate', category: 'Investments & Finances' },
+  { pattern: 'boosterinvest', merchant: 'Booster', category: 'Investments & Finances' },
+  { pattern: 'termdeposit', merchant: 'Term Deposit', category: 'Investments & Finances' },
+  { pattern: 'easycrypto', merchant: 'Easy Crypto', category: 'Investments & Finances' },
+  { pattern: 'swyftx', merchant: 'Swyftx', category: 'Investments & Finances' },
+  { pattern: 'coinbase', merchant: 'Coinbase', category: 'Investments & Finances' },
+  { pattern: 'binance', merchant: 'Binance', category: 'Investments & Finances' },
+
   // Internal transfers, bank fees & interest
   { pattern: 'mbtransfer', merchant: 'Bank Transfer', category: 'Transfers & Fees' },
   { pattern: 'fntransfer', merchant: 'Bank Transfer', category: 'Transfers & Fees' },
