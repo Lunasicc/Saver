@@ -1,0 +1,21 @@
+# Dependencies & build output
+node_modules/
+dist/
+build/
+*.log
+
+# Secrets and personal data: never commit these
+.env
+.env.*
+!.env.example
+*.local
+server/data/
+*.sqlite
+*.sqlite-*
+
+# Tooling
+client/scripts/shots/
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

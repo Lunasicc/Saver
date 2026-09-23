@@ -1,0 +1,5 @@
+[
+  { "pattern": "Local Cafe", "merchant": "My Local Cafe", "category": "Dining Out" },
+  { "pattern": "Riverside Gym", "merchant": "Riverside Gym", "category": "Health" },
+  { "pattern": "Corner Dairy", "merchant": "Corner Dairy", "category": "Groceries" }
+]

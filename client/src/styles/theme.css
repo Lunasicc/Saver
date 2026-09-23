@@ -1,0 +1,123 @@
+/*
+ * Design tokens.
+ *
+ * Palette: cool neutral (zinc) base with ONE accent — lime — which doubles as the
+ * "good money" signal (income, savings, under budget). Spending renders in plain
+ * text rather than red, so red is reserved for things that genuinely need
+ * attention (over budget, overspent).
+ *
+ * Shape lock: surfaces 14px, controls 8px, chips/badges fully rounded.
+ */
+:root {
+  color-scheme: dark;
+
+  --bg: #0b0c0e;
+  --surface: #121316;
+  --surface-2: #18191d;
+  --surface-3: #202126;
+  --line: #222328;
+  --line-strong: #2e3036;
+
+  --text: #ededef;
+  --text-2: #a0a2ab;
+  --text-3: #6a6d77;
+
+  --accent: #c5f26b;
+  --accent-strong: #d4f98a;
+  --accent-ink: #10130a;
+  --accent-soft: rgba(197, 242, 107, 0.1);
+  --accent-line: rgba(197, 242, 107, 0.28);
+
+  --danger: #ff7b6e;
+  --danger-soft: rgba(255, 123, 110, 0.1);
+  --danger-line: rgba(255, 123, 110, 0.3);
+  --warning: #f1b950;
+  --warning-soft: rgba(241, 185, 80, 0.1);
+
+  --radius-lg: 14px;
+  --radius: 8px;
+  --radius-full: 999px;
+
+  --shadow-pop: 0 12px 32px -12px rgba(0, 0, 0, 0.6), 0 0 0 1px var(--line-strong);
+
+  --chart-spend: #8b8e98;
+
+  --font-sans: 'Geist Variable', 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'Geist Mono Variable', ui-monospace, 'Cascadia Mono', monospace;
+
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* Legacy aliases so any not-yet-migrated inline styles keep resolving. */
+  --bg-elevated: var(--surface-2);
+  --bg-card: var(--surface);
+  --border: var(--line);
+  --text-muted: var(--text-2);
+  --success: var(--accent);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: 'ss01', 'cv11';
+}
+
+h1,
+h2,
+h3,
+h4 {
+  margin: 0;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+p {
+  margin: 0;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font-family: inherit;
+  color: inherit;
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
