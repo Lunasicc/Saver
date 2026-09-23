@@ -8,6 +8,9 @@ export type Account = {
   current_balance: number;
   is_liability: number;
   akahu_account_id: string | null;
+  akahu_status?: 'ACTIVE' | 'INACTIVE' | null;
+  akahu_logo?: string | null;
+  account_mask?: string | null;
   created_at: string;
 };
 

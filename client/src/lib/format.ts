@@ -113,3 +113,18 @@ export function ordinal(n: number) {
   const v = n % 100;
   return `${n}${s[(v - 20) % 10] || s[v] || s[0]}`;
 }
+
+/** "just now", "5 min ago", "3h ago", "2 days ago", then a date. */
+export function timeAgo(iso: string | null | undefined, now = Date.now()) {
+  if (!iso) return 'never';
+  const then = Date.parse(iso);
+  if (Number.isNaN(then)) return 'never';
+  const mins = Math.max(0, Math.round((now - then) / 60000));
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins} min ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  if (days < 14) return `${days} day${days === 1 ? '' : 's'} ago`;
+  return new Intl.DateTimeFormat('en-NZ', { day: 'numeric', month: 'short' }).format(new Date(then));
+}

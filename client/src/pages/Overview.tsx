@@ -550,22 +550,22 @@ function BillsPanel({ bills }: { bills: RecurringBill[] }) {
 
 const START_OPTIONS: { to: string; icon: Icon; title: string; body: string; cta: string; primary?: boolean }[] = [
   {
-    to: '/accounts',
+    to: '/accounts?add=bank',
     icon: BankIcon,
     title: 'Connect your bank',
-    body: 'Sync balances and transactions automatically from any NZ bank via Akahu. Takes about five minutes.',
+    body: 'Sync balances and transactions automatically from any NZ bank. Saver walks you through it in about three minutes.',
     cta: 'Connect',
     primary: true,
   },
   {
-    to: '/accounts?add=1',
+    to: '/accounts?add=csv',
     icon: FileCsvIcon,
     title: 'Import a statement',
-    body: 'Add an account, then upload a CSV export from your internet banking.',
-    cta: 'Add an account',
+    body: 'Upload a CSV export from your internet banking.',
+    cta: 'Import',
   },
   {
-    to: '/accounts?add=1',
+    to: '/accounts?add=manual',
     icon: PencilSimpleIcon,
     title: 'Track it by hand',
     body: 'Create an account and enter transactions yourself. Cash, savings jars, anything.',

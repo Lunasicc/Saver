@@ -15,6 +15,9 @@ db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
 const schemaSql = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf-8');
+const hadSeenAccounts = Boolean(
+  db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'akahu_seen_accounts'").get()
+);
 db.exec(schemaSql);
 
 // Additive migration: older databases created before the "merchant" column
@@ -24,6 +27,26 @@ const txColumns = db.prepare("PRAGMA table_info(transactions)").all().map((c) =>
 if (!txColumns.includes('merchant')) {
   db.exec('ALTER TABLE transactions ADD COLUMN merchant TEXT');
 }
+
+// Bank connection details shown in the connections hub.
+const accountColumns = new Set(db.prepare('PRAGMA table_info(accounts)').all().map((c) => c.name));
+for (const column of ['akahu_connection_id', 'akahu_logo', 'akahu_status', 'akahu_refreshed_at', 'account_mask']) {
+  if (!accountColumns.has(column)) db.exec(`ALTER TABLE accounts ADD COLUMN ${column} TEXT`);
+}
+
+// Databases that synced with Akahu before the connections hub existed: keep their
+// bank accounts included and treat them as already synced, so upgrading skips the
+// first-import wizard. Runs once, when the hub's table is first created.
+if (!hadSeenAccounts) db.exec(`
+  INSERT OR IGNORE INTO akahu_seen_accounts (akahu_account_id, included)
+    SELECT akahu_account_id, 1 FROM accounts WHERE akahu_account_id IS NOT NULL;
+  INSERT OR IGNORE INTO settings (key, value)
+    SELECT 'akahu_last_sync_at', strftime('%Y-%m-%dT%H:%M:%SZ', COALESCE(
+      (SELECT MAX(t.created_at) FROM transactions t JOIN accounts a ON a.id = t.account_id
+        WHERE a.akahu_account_id IS NOT NULL AND t.source = 'akahu'),
+      (SELECT MAX(created_at) FROM accounts WHERE akahu_account_id IS NOT NULL)))
+    WHERE EXISTS (SELECT 1 FROM accounts WHERE akahu_account_id IS NOT NULL);
+`);
 
 const DEFAULT_CATEGORIES = [
   { name: 'Groceries', icon: '🛒', color: '#22c55e' },

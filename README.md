@@ -22,7 +22,9 @@ enter everything by hand.
   rules editor.
 - **Planning**: monthly budgets (with suggestions based on your own history),
   recurring bill detection and a subscription audit.
-- **Accounts**: net worth over time, and one-click bank sync.
+- **Accounts**: a bank connections hub (every connected bank, its health and
+  when it last updated, with per-account include switches), net worth over
+  time, and one place to add bank, CSV or hand-tracked accounts.
 
 ## Getting started
 
@@ -56,27 +58,49 @@ balances and transactions from ASB, ANZ, BNZ, Westpac, Kiwibank and others.
 Each person uses their own free Akahu **personal app**, so your bank data goes
 straight from Akahu to your computer.
 
-1. Create an account at **[my.akahu.nz](https://my.akahu.nz)** and connect
-   your bank accounts.
-2. Open the **Developers** page, accept the developer terms and set up
-   two-factor authentication. Akahu then shows you an **App ID Token**
-   (`app_token_…`) and a **User Access Token** (`user_token_…`).
-3. In Saver, open **Accounts**, paste both tokens into **Bank connection** and
-   click **Connect and sync**.
+In Saver, open **Accounts → Add account → Connect a bank**. A short setup
+guide walks you through it without leaving Saver:
 
-Saver checks the tokens with Akahu, saves them on your computer and imports
-the last 12 months of transactions. After that, use **Sync bank** in the top
-bar whenever you want to catch up. Re-syncing is always safe: duplicates are
-skipped and your own categories are never overwritten. **Disconnect** on the
-Accounts page removes the saved tokens.
+1. **Akahu account**: create a free account at my.akahu.nz.
+2. **Connect banks**: log in to your banks through Akahu.
+3. **Link Saver**: on Akahu's **Developers** page, accept the developer terms
+   and set up two-factor authentication, then copy the **App ID Token**
+   (`app_token_…`) and **User Access Token** (`user_token_…`) into Saver.
+4. **Choose accounts**: pick the accounts to track and how much history to
+   bring in (3, 12 or 24 months).
+5. **Import**: Saver imports and auto-categorizes your transactions.
+
+Each Akahu step opens in a small popup window, and Saver notices when you're
+done and moves on. Bank logins always happen on Akahu's own site: Saver never
+sees your bank passwords, and banks don't allow their login pages to be
+embedded in other apps. If your browser blocks the popup, allow popups for
+`localhost`.
+
+After setup, the **Bank connections** panel on the Accounts page shows:
+
+- **Every connected bank**, marked **Active** or **Needs reconnecting** (with a
+  link to fix it in Akahu), and how old the bank's data is.
+- **An include switch on each account.** Switching one off stops syncing it
+  and keeps the history you already have.
+- **Connect another bank.** Saver spots the new accounts and offers to import
+  them.
+- **Refresh from bank.** This asks Akahu to fetch the latest data from your
+  banks before syncing. Akahu limits how often it does this.
+- **Sync now and Auto-sync.** When auto-sync is on, Saver catches up
+  automatically when you open it, if it's been more than 6 hours, and tells
+  you what's new. The **Sync bank** button in the top bar does the same any
+  time.
+
+Re-syncing is always safe: duplicates are skipped and your own categories are
+never overwritten. **Disconnect** removes the saved tokens.
 
 > Akahu personal apps are free and limited to your own Akahu account, which is
 > exactly what a self-hosted app needs. See the
 > [Akahu personal app docs](https://developers.akahu.nz/docs/personal-apps).
 
-Outside NZ, or if you'd rather not connect your bank, add an account on the
-**Accounts** page and use **Transactions → Import** to upload CSV statements
-exported from your internet banking.
+Outside NZ, or if you'd rather not connect your bank, use **Add account →
+Import a statement** to upload CSV statements exported from your internet
+banking, or **Track by hand** for cash and other accounts.
 
 ## Your data and privacy
 

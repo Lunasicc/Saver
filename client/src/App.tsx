@@ -1,17 +1,21 @@
-import { useEffect, useState } from 'react';
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { NavLink, useLocation, useOutlet } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   ArrowsClockwiseIcon,
   ChartDonutIcon,
+  CheckCircleIcon,
   CurrencyCircleDollarIcon,
   ListBulletsIcon,
   TargetIcon,
   WalletIcon,
+  XIcon,
 } from '@phosphor-icons/react';
 import { api } from './lib/api';
 import { notifyDataChanged, onDataChanged } from './lib/events';
 import { APP_NAME } from './lib/brand';
+import { describeSync, type AkahuStatus, type AutoSyncResult, type SyncResult } from './lib/akahu';
+import { timeAgo } from './lib/format';
 
 const NAV_ITEMS = [
   { to: '/', label: 'Overview', icon: ChartDonutIcon, end: true },
@@ -20,22 +24,47 @@ const NAV_ITEMS = [
   { to: '/accounts', label: 'Accounts', icon: WalletIcon },
 ];
 
-type SyncResult = { accountsSynced: number; transactionsImported: number };
-
+/** Top-bar sync: incremental, shows how fresh the data is, and runs auto-sync once per app load. */
 function SyncButton() {
-  const [configured, setConfigured] = useState(false);
+  const [status, setStatus] = useState<AkahuStatus | null>(null);
   const [state, setState] = useState<'idle' | 'syncing' | 'done' | 'error'>('idle');
   const [message, setMessage] = useState('');
+  const [toast, setToast] = useState<string | null>(null);
+  const autoRan = useRef(false);
+  const [, setTick] = useState(0);
 
   useEffect(() => {
     const load = () =>
       api
-        .get<{ configured: boolean }>('/akahu/status')
-        .then((s) => setConfigured(s.configured))
-        .catch(() => setConfigured(false));
+        .get<AkahuStatus>('/akahu/status')
+        .then(setStatus)
+        .catch(() => setStatus(null));
     load();
     return onDataChanged(load);
   }, []);
+
+  // Keep "synced 3 min ago" honest while the app stays open.
+  useEffect(() => {
+    const timer = setInterval(() => setTick((t) => t + 1), 60000);
+    return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    if (status === null || autoRan.current) return;
+    // Only the status seen when the app opens counts; connecting mid-session never auto-syncs.
+    autoRan.current = true;
+    if (!status.configured || !status.autoSync || !status.lastSyncAt) return;
+    setState('syncing');
+    api
+      .post<AutoSyncResult>('/akahu/auto-sync', {})
+      .then((res) => {
+        setState('idle');
+        if (!res.ran) return;
+        if (res.transactionsImported > 0) setToast(`Synced your bank: ${describeSync(res)}`);
+        notifyDataChanged();
+      })
+      .catch(() => setState('idle'));
+  }, [status]);
 
   useEffect(() => {
     if (state !== 'done' && state !== 'error') return;
@@ -43,17 +72,19 @@ function SyncButton() {
     return () => clearTimeout(timer);
   }, [state]);
 
-  if (!configured) return null;
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), 7000);
+    return () => clearTimeout(timer);
+  }, [toast]);
+
+  if (!status?.configured || !status.lastSyncAt) return null;
 
   async function sync() {
     setState('syncing');
     try {
-      const res = await api.post<SyncResult>('/akahu/sync', { months: 3 });
-      setMessage(
-        res.transactionsImported > 0
-          ? `${res.transactionsImported} new transaction${res.transactionsImported === 1 ? '' : 's'}`
-          : 'Up to date'
-      );
+      const res = await api.post<SyncResult>('/akahu/sync', {});
+      setMessage(describeSync(res));
       setState('done');
       notifyDataChanged();
     } catch (err) {
@@ -65,8 +96,9 @@ function SyncButton() {
   return (
     <div className="row" style={{ gap: 10 }}>
       <AnimatePresence>
-        {(state === 'done' || state === 'error') && (
+        {state === 'done' || state === 'error' ? (
           <motion.span
+            key="msg"
             role="status"
             className={`small ${state === 'error' ? 'amount--bad' : 'muted'}`}
             initial={{ opacity: 0, x: 6 }}
@@ -76,14 +108,49 @@ function SyncButton() {
           >
             {message}
           </motion.span>
-        )}
+        ) : status.lastSyncAt && state === 'idle' ? (
+          <span key="age" className="small faint sync-age">
+            {timeAgo(status.lastSyncAt)}
+          </span>
+        ) : null}
       </AnimatePresence>
-      <button className="btn btn-secondary" onClick={sync} disabled={state === 'syncing'} title="Sync with your bank via Akahu">
+      <button
+        className="btn btn-secondary"
+        onClick={sync}
+        disabled={state === 'syncing'}
+        title={`Sync with your bank via Akahu${status.lastSyncAt ? ` (last synced ${timeAgo(status.lastSyncAt)})` : ''}`}
+      >
         <ArrowsClockwiseIcon size={15} weight="bold" className={state === 'syncing' ? 'spin' : undefined} />
         <span className="btn-label">{state === 'syncing' ? 'Syncing…' : 'Sync bank'}</span>
       </button>
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            className="toast"
+            role="status"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 12 }}
+          >
+            <CheckCircleIcon size={18} weight="fill" />
+            <span>{toast}</span>
+            <button className="btn btn-icon" aria-label="Dismiss" onClick={() => setToast(null)}>
+              <XIcon size={14} />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
+}
+/**
+ * The page that's animating out must keep rendering its own route. A plain <Outlet />
+ * would render the *new* page inside the exiting wrapper too, mounting it twice.
+ */
+function FrozenOutlet() {
+  const outlet = useOutlet();
+  const [frozen] = useState(outlet);
+  return frozen;
 }
 
 function App() {
@@ -132,7 +199,7 @@ function App() {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2, ease: 'easeOut' }}
           >
-            <Outlet />
+            <FrozenOutlet />
           </motion.div>
         </AnimatePresence>
       </main>

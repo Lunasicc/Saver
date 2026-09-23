@@ -54,7 +54,10 @@ export function ImportCsv() {
       .then((list) => {
         setAccounts(list);
         setLoaded(true);
-        if (list.length === 1) setAccountId(String(list[0].id));
+        // The Add account dialog sends people here with ?account=<id> after creating one.
+        const wanted = new URLSearchParams(window.location.search).get('account');
+        if (wanted && list.some((a) => String(a.id) === wanted)) setAccountId(wanted);
+        else if (list.length === 1) setAccountId(String(list[0].id));
       })
       .catch((err: Error) => setError(err.message));
   }, []);
@@ -132,7 +135,7 @@ export function ImportCsv() {
       <Panel>
         {loaded && accounts.length === 0 ? (
           <EmptyState icon={BankIcon} title="Add an account first">
-            Statements are imported into an account. <Link to="/accounts?add=1">Create one on the Accounts page</Link>,
+            Statements are imported into an account. <Link to="/accounts?add=csv">Create one on the Accounts page</Link>,
             then come back here.
           </EmptyState>
         ) : (

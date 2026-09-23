@@ -93,3 +93,12 @@ CREATE TABLE IF NOT EXISTS settings (
   value TEXT NOT NULL,
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+-- Every Akahu account the user has seen in the connections hub, and whether
+-- they want it synced. Lets us spot newly connected accounts and remember
+-- exclusions for accounts that were never imported.
+CREATE TABLE IF NOT EXISTS akahu_seen_accounts (
+  akahu_account_id TEXT PRIMARY KEY,
+  included INTEGER NOT NULL DEFAULT 1,
+  first_seen_at TEXT NOT NULL DEFAULT (datetime('now'))
+);

@@ -1,8 +1,10 @@
 import { db } from '../db/index.js';
+import { getSetting } from '../lib/settings.js';
 
-const AKAHU_BASE = 'https://api.akahu.io/v1';
+// Overridable so tests and demos can point at a mock Akahu.
+const akahuBase = () => (process.env.AKAHU_API_URL || 'https://api.akahu.io/v1').replace(/\/+$/, '');
 
-const readSetting = (key) => db.prepare('SELECT value FROM settings WHERE key = ?').get(key)?.value || '';
+const readSetting = (key) => getSetting(key);
 
 /** Tokens from server/.env win; otherwise use the ones saved from the Accounts page. */
 export function getCredentials() {
@@ -43,23 +45,35 @@ function authHeaders(creds = getCredentials()) {
   return { Authorization: `Bearer ${userToken}`, 'X-Akahu-Id': appToken };
 }
 
-async function akahuGet(path, params = {}, creds) {
-  const url = new URL(`${AKAHU_BASE}${path}`);
+async function akahuRequest(method, path, params = {}, creds) {
+  const url = new URL(`${akahuBase()}${path}`);
   for (const [key, value] of Object.entries(params)) {
     if (value !== undefined && value !== null) url.searchParams.set(key, value);
   }
-  const res = await fetch(url, { headers: authHeaders(creds) });
+  let res;
+  try {
+    res = await fetch(url, { method, headers: authHeaders(creds) });
+  } catch {
+    const err = new Error("Couldn't reach Akahu. Check your internet connection and try again.");
+    err.status = 502;
+    throw err;
+  }
   if (!res.ok) {
+    const rejected = res.status === 401 || res.status === 403;
     const err = new Error(
-      res.status === 401 || res.status === 403
+      rejected
         ? 'Akahu rejected these tokens. Check they were copied correctly from my.akahu.nz → Developers.'
-        : `Akahu request to ${path} failed with status ${res.status}`
+        : res.status === 429
+          ? 'Akahu is rate limiting requests. Wait a few minutes and try again.'
+          : `Akahu request to ${path} failed with status ${res.status}`
     );
-    err.status = res.status === 401 || res.status === 403 ? 401 : 502;
+    err.status = rejected ? 401 : res.status === 429 ? 429 : 502;
     throw err;
   }
   return res.json();
 }
+
+const akahuGet = (path, params, creds) => akahuRequest('GET', path, params, creds);
 
 /** Checks a token pair against Akahu before saving it. Returns the connected account count. */
 export async function verifyCredentials(creds) {
@@ -70,7 +84,27 @@ export async function verifyCredentials(creds) {
 // Fetches every connected account for this Akahu user.
 export async function fetchAccounts() {
   const data = await akahuGet('/accounts');
-  return data.items;
+  return data.items ?? [];
+}
+
+/**
+ * Asks Akahu to pull fresh data from the banks. Akahu may ignore this if the
+ * accounts were refreshed recently (1 hour rest period for personal apps), and
+ * the refresh itself finishes in the background.
+ */
+export async function requestRefresh() {
+  await akahuRequest('POST', '/refresh');
+}
+
+/** "12-3456-7890123-00" -> "0123-00"; "1234-****-****-5678" -> "5678". Never stores full numbers. */
+export function maskAccountNumber(formatted) {
+  if (!formatted) return null;
+  const parts = String(formatted).split('-');
+  if (parts.length === 4 && /^\d{2}$/.test(parts[0]) && /^\d+$/.test(parts[2])) {
+    return `${parts[2].slice(-4)}-${parts[3]}`;
+  }
+  const digits = String(formatted).replace(/\D/g, '');
+  return digits ? digits.slice(-4) : null;
 }
 
 // Fetches all settled transactions, following pagination cursors.

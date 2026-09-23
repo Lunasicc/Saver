@@ -72,7 +72,9 @@ test('requests from a foreign Origin are rejected', async () => {
 test('Akahu starts disconnected and rejects malformed tokens', async () => {
   await withServer(async (base) => {
     const status = await realFetch(`${base}/akahu/status`).then((r) => r.json());
-    assert.deepEqual(status, { configured: false, source: null });
+    assert.equal(status.configured, false);
+    assert.equal(status.source, null);
+    assert.equal(status.autoSync, true);
 
     const bad = await send(base, 'PUT', '/akahu/credentials', { appToken: 'nope', userToken: 'user_token_abc' });
     assert.equal(bad.status, 400);
@@ -99,15 +101,19 @@ test('Akahu tokens are verified, saved without being echoed back, and can be rem
       });
       assert.equal(res.status, 200);
       const body = await res.json();
-      assert.deepEqual(body, { configured: true, source: 'app', accounts: 2 });
+      assert.equal(body.configured, true);
+      assert.equal(body.source, 'app');
+      assert.equal(body.accounts, 2);
       assert.ok(!JSON.stringify(body).includes('test456'), 'token must not be echoed');
       assert.equal(seen[0].headers['X-Akahu-Id'], 'app_token_test123');
 
       const status = await realFetch(`${base}/akahu/status`).then((r) => r.json());
-      assert.deepEqual(status, { configured: true, source: 'app' });
+      assert.equal(status.configured, true);
+      assert.equal(status.source, 'app');
 
       const cleared = await send(base, 'DELETE', '/akahu/credentials').then((r) => r.json());
-      assert.deepEqual(cleared, { configured: false, source: null });
+      assert.equal(cleared.configured, false);
+      assert.equal(cleared.source, null);
     });
   } finally {
     restore();
