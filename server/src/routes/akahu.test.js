@@ -70,6 +70,10 @@ globalThis.fetch = async (url, init) => {
   fake.calls.push({ method: init?.method ?? 'GET', path: u.pathname, start: u.searchParams.get('start') });
   if (u.pathname === '/v1/accounts') return json({ success: true, items: fake.accounts });
   if (u.pathname === '/v1/transactions') return json({ success: true, items: fake.transactions, cursor: {} });
+  const perAccount = u.pathname.match(/^\/v1\/accounts\/([^/]+)\/transactions$/);
+  if (perAccount) {
+    return json({ success: true, items: fake.transactions.filter((t) => t._account === perAccount[1]), cursor: {} });
+  }
   if (u.pathname === '/v1/refresh' && init?.method === 'POST') return json({ success: true });
   return json({ success: false }, 404);
 };
@@ -168,6 +172,8 @@ test('later syncs are incremental from the last sync', async () => {
   assert.equal(sync.transactionsUpdated, 2);
   const txCall = fake.calls.find((c) => c.path === '/v1/transactions');
   assert.equal(txCall.start, sync.since);
+  assert.ok(!fake.calls.some((c) => c.path.startsWith('/v1/accounts/')), 'no history backfill needed');
+  assert.equal(sync.accountsBackfilled, 0);
 
   assert.deepEqual(syncStartDate({ lastSyncAt: '2026-09-20T05:00:00.000Z' }), {
     start: '2026-09-06',
@@ -177,6 +183,47 @@ test('later syncs are incremental from the last sync', async () => {
 
   const badMonths = await call('POST', '/akahu/sync', { months: 99 });
   assert.equal(badMonths.status, 400);
+});
+
+test('accounts connected later get the same history as the others, once', async () => {
+  const initialStart = db.prepare("SELECT value FROM settings WHERE key = 'akahu_history_start'").get().value;
+  fake.accounts.push({
+    _id: 'acc_new',
+    connection: { _id: 'conn_anz', name: 'ANZ', logo: null },
+    name: 'Joint',
+    formatted_account: '01-0123-0999999-00',
+    status: 'ACTIVE',
+    type: 'CHECKING',
+    balance: { current: 10, currency: 'NZD' },
+  });
+  // Older than the incremental window, so only a history backfill finds it.
+  fake.transactions.push({ _id: 'trans_old', _account: 'acc_new', date: '2025-11-02T00:00:00Z', description: 'OLD', amount: -5 });
+
+  fake.calls.length = 0;
+  const sync = await call('POST', '/akahu/sync', {}).then((r) => r.json());
+  assert.equal(sync.mode, 'incremental');
+  assert.equal(sync.accountsBackfilled, 1);
+  assert.equal(sync.historySince, initialStart);
+  const backfillCalls = fake.calls.filter((c) => c.path.startsWith('/v1/accounts/'));
+  assert.deepEqual(backfillCalls.map((c) => [c.path, c.start]), [['/v1/accounts/acc_new/transactions', initialStart]]);
+  assert.ok(db.prepare("SELECT 1 FROM transactions WHERE external_id = 'trans_old'").get());
+  assert.equal(sync.transactionsImported, 1, 'the backfill does not double count the regular window');
+
+  fake.calls.length = 0;
+  const again = await call('POST', '/akahu/sync', {}).then((r) => r.json());
+  assert.equal(again.accountsBackfilled, 0);
+  assert.ok(!fake.calls.some((c) => c.path.startsWith('/v1/accounts/')));
+
+  // Switching an excluded account back on fills in the gap too.
+  await call('PATCH', '/akahu/accounts', { changes: [{ akahuId: 'acc_kiwi1', included: true }] });
+  fake.calls.length = 0;
+  const reincluded = await call('POST', '/akahu/sync', {}).then((r) => r.json());
+  assert.equal(reincluded.accountsBackfilled, 1);
+  assert.deepEqual(
+    fake.calls.filter((c) => c.path.startsWith('/v1/accounts/')).map((c) => c.path),
+    ['/v1/accounts/acc_kiwi1/transactions']
+  );
+  await call('PATCH', '/akahu/accounts', { changes: [{ akahuId: 'acc_kiwi1', included: false }] });
 });
 
 test('auto-sync only runs when enabled and the last sync is stale', async () => {

@@ -109,12 +109,14 @@ export function maskAccountNumber(formatted) {
 
 // Fetches all settled transactions, following pagination cursors.
 // Pass `start` (ISO date) to limit how far back we sync — useful to avoid
-// re-pulling a user's entire transaction history on every sync.
-export async function fetchAllTransactions({ start } = {}) {
+// re-pulling a user's entire transaction history on every sync. Pass
+// `accountId` to read a single account's history.
+export async function fetchAllTransactions({ start, accountId } = {}) {
+  const path = accountId ? `/accounts/${encodeURIComponent(accountId)}/transactions` : '/transactions';
   const items = [];
   let cursor;
   do {
-    const data = await akahuGet('/transactions', { start, cursor });
+    const data = await akahuGet(path, { start, cursor });
     items.push(...data.items);
     cursor = data.cursor?.next || undefined;
   } while (cursor);

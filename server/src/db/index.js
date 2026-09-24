@@ -35,6 +35,13 @@ for (const column of ['akahu_connection_id', 'akahu_logo', 'akahu_status', 'akah
   if (!accountColumns.has(column)) db.exec(`ALTER TABLE accounts ADD COLUMN ${column} TEXT`);
 }
 
+// Accounts connected after the first import used to get only recent history.
+// Existing rows start un-backfilled so the next sync fills in their history once.
+const seenColumns = db.prepare('PRAGMA table_info(akahu_seen_accounts)').all().map((c) => c.name);
+if (!seenColumns.includes('backfilled')) {
+  db.exec('ALTER TABLE akahu_seen_accounts ADD COLUMN backfilled INTEGER NOT NULL DEFAULT 0');
+}
+
 // Databases that synced with Akahu before the connections hub existed: keep their
 // bank accounts included and treat them as already synced, so upgrading skips the
 // first-import wizard. Runs once, when the hub's table is first created.

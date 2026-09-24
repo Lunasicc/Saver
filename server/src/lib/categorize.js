@@ -81,6 +81,8 @@ export const DEFAULT_MERCHANT_RULES = [
   { pattern: 'genesisenergy', merchant: 'Genesis Energy', category: 'Utilities' },
   { pattern: 'mercuryenergy', merchant: 'Mercury Energy', category: 'Utilities' },
   { pattern: 'meridianenergy', merchant: 'Meridian Energy', category: 'Utilities' },
+  { pattern: 'meridian', merchant: 'Meridian Energy', category: 'Utilities' },
+  { pattern: 'slingshot', merchant: 'Slingshot', category: 'Utilities' },
   { pattern: 'trustpower', merchant: 'Trustpower', category: 'Utilities' },
   { pattern: 'watercare', merchant: 'Watercare', category: 'Utilities' },
 
@@ -217,6 +219,10 @@ export const DEFAULT_MERCHANT_RULES = [
 
   // Outdoor/shopping
   { pattern: 'kathmandu', merchant: 'Kathmandu', category: 'Shopping' },
+  { pattern: 'whitcoulls', merchant: 'Whitcoulls', category: 'Shopping' },
+
+  // Travel
+  { pattern: 'rentalcars', merchant: 'Rentalcars.com', category: 'Travel' },
 
   // Income
   { pattern: 'salary', merchant: 'Salary', category: 'Income' },

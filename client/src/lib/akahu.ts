@@ -37,6 +37,8 @@ export type SyncResult = {
   syncedAt: string;
   accountsSynced: number;
   accountsExcluded: number;
+  accountsBackfilled: number;
+  historySince: string | null;
   transactionsImported: number;
   transactionsUpdated: number;
   transactionsSkipped: number;
@@ -61,5 +63,9 @@ export function describeSync(res: SyncResult) {
       : 'Already up to date',
   ];
   if (res.transactionsCategorized > 0) parts.push(`${res.transactionsCategorized} auto-categorised`);
+  if (res.accountsBackfilled > 0 && res.transactionsImported > 0 && res.historySince) {
+    const since = new Date(`${res.historySince}T00:00:00`).toLocaleDateString('en-NZ', { month: 'short', year: 'numeric' });
+    parts.push(`history back to ${since} for ${res.accountsBackfilled === 1 ? 'a new account' : `${res.accountsBackfilled} new accounts`}`);
+  }
   return parts.join(' · ');
 }

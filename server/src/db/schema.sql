@@ -100,5 +100,7 @@ CREATE TABLE IF NOT EXISTS settings (
 CREATE TABLE IF NOT EXISTS akahu_seen_accounts (
   akahu_account_id TEXT PRIMARY KEY,
   included INTEGER NOT NULL DEFAULT 1,
-  first_seen_at TEXT NOT NULL DEFAULT (datetime('now'))
+  first_seen_at TEXT NOT NULL DEFAULT (datetime('now')),
+  -- 1 once the account's full history window has been imported.
+  backfilled INTEGER NOT NULL DEFAULT 0
 );

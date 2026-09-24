@@ -6,6 +6,7 @@ import { getSetting, setSetting, deleteSetting } from '../lib/settings.js';
 
 const LAST_SYNC_KEY = 'akahu_last_sync_at';
 const AUTO_SYNC_KEY = 'akahu_auto_sync';
+const HISTORY_START_KEY = 'akahu_history_start';
 // Incremental syncs re-read this much history so pending -> settled changes are picked up.
 const INCREMENTAL_OVERLAP_DAYS = 14;
 export const AUTO_SYNC_INTERVAL_MS = 6 * 60 * 60 * 1000;
@@ -15,12 +16,16 @@ export const resetLastSync = () => deleteSetting(LAST_SYNC_KEY);
 export const isAutoSyncEnabled = () => getSetting(AUTO_SYNC_KEY, '1') !== '0';
 export const setAutoSyncEnabled = (enabled) => setSetting(AUTO_SYNC_KEY, enabled ? '1' : '0');
 
-const selectSeen = db.prepare('SELECT akahu_account_id, included FROM akahu_seen_accounts');
+const selectSeen = db.prepare('SELECT akahu_account_id, included, backfilled FROM akahu_seen_accounts');
 const insertSeen = db.prepare('INSERT OR IGNORE INTO akahu_seen_accounts (akahu_account_id, included) VALUES (?, 1)');
+// Switching an excluded account back on leaves a gap, so it needs its history again.
 const upsertSeen = db.prepare(
   `INSERT INTO akahu_seen_accounts (akahu_account_id, included) VALUES (?, ?)
-   ON CONFLICT(akahu_account_id) DO UPDATE SET included = excluded.included`
+   ON CONFLICT(akahu_account_id) DO UPDATE SET
+     backfilled = CASE WHEN excluded.included = 1 AND akahu_seen_accounts.included = 0 THEN 0 ELSE backfilled END,
+     included = excluded.included`
 );
+const markBackfilled = db.prepare('UPDATE akahu_seen_accounts SET backfilled = 1 WHERE akahu_account_id = ?');
 
 /** Map of akahu account id -> included (boolean) for every account we've seen. */
 export function getSeenAccounts() {
@@ -47,6 +52,26 @@ export function syncStartDate({ months, lastSyncAt = getLastSyncAt() } = {}) {
   return { start: `${shiftMonth(currentMonthLocal(), -11)}-01`, mode: 'initial' };
 }
 
+/**
+ * How far back an account's history should go when it's first imported: as far
+ * as the history the person chose, or as far as the accounts already in Saver
+ * reach, so a newly added account lines up with the others. `fallback` applies
+ * when there's no history yet.
+ */
+export function historyStartDate({ fallback = `${shiftMonth(currentMonthLocal(), -11)}-01` } = {}) {
+  const candidates = [];
+  const chosen = getSetting(HISTORY_START_KEY);
+  if (chosen) candidates.push(chosen);
+  const earliest = db
+    .prepare(
+      `SELECT MIN(t.date) AS d FROM transactions t JOIN accounts a ON a.id = t.account_id
+       WHERE t.source = 'akahu' AND a.akahu_account_id IS NOT NULL`
+    )
+    .get()?.d;
+  if (earliest) candidates.push(`${earliest.slice(0, 7)}-01`);
+  return candidates.length ? candidates.sort()[0] : fallback;
+}
+
 let running = null;
 export const isSyncRunning = () => running !== null;
 
@@ -71,8 +96,14 @@ async function runSync({ months }) {
 
   // Accounts we haven't seen before default to included.
   for (const acc of akahuAccounts) insertSeen.run(acc._id);
-  const seen = getSeenAccounts();
-  const included = akahuAccounts.filter((acc) => seen.get(acc._id) !== false);
+  const seenRows = new Map(selectSeen.all().map((r) => [r.akahu_account_id, r]));
+  const included = akahuAccounts.filter((acc) => seenRows.get(acc._id)?.included !== 0);
+
+  // Accounts without their history yet (new, or switched back on) read further
+  // back than the regular window on their own.
+  const historyStart = historyStartDate(mode === 'incremental' ? {} : { fallback: start });
+  const needsHistory = included.filter((acc) => seenRows.get(acc._id)?.backfilled !== 1);
+  const backfill = historyStart < start ? needsHistory : [];
 
   const upsertAccount = db.prepare(
     `INSERT INTO accounts (name, type, institution, currency, starting_balance, current_balance, is_liability,
@@ -112,6 +143,15 @@ async function runSync({ months }) {
   })();
 
   const transactions = included.length ? await akahu.fetchAllTransactions({ start }) : [];
+  const fetchedIds = new Set(transactions.map((tx) => tx._id));
+  for (const acc of backfill) {
+    for (const tx of await akahu.fetchAllTransactions({ start: historyStart, accountId: acc._id })) {
+      if (!fetchedIds.has(tx._id)) {
+        fetchedIds.add(tx._id);
+        transactions.push(tx);
+      }
+    }
+  }
 
   // The bank owns date/description/amount; the user owns category, merchant and note.
   // Updating on conflict keeps corrections Akahu makes to pending->settled transactions
@@ -153,6 +193,12 @@ async function runSync({ months }) {
   const categorized = bulkAutoCategorize({ onlyUncategorized: true });
   const syncedAt = new Date().toISOString();
   setSetting(LAST_SYNC_KEY, syncedAt);
+  if (mode !== 'incremental' && (!getSetting(HISTORY_START_KEY) || start < getSetting(HISTORY_START_KEY))) {
+    setSetting(HISTORY_START_KEY, start);
+  }
+  db.transaction(() => {
+    for (const acc of needsHistory) markBackfilled.run(acc._id);
+  })();
 
   return {
     mode,
@@ -160,6 +206,8 @@ async function runSync({ months }) {
     syncedAt,
     accountsSynced: included.length,
     accountsExcluded: akahuAccounts.length - included.length,
+    accountsBackfilled: backfill.length,
+    historySince: backfill.length ? historyStart : null,
     transactionsImported: imported,
     transactionsUpdated: updated,
     transactionsSkipped: skipped,

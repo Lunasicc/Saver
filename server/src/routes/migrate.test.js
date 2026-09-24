@@ -82,6 +82,8 @@ test('old databases gain the connection columns and keep their rows', () => {
   const row = db.prepare('SELECT name, current_balance FROM accounts WHERE akahu_account_id = ?').get('acc_old');
   assert.deepEqual(row, { name: 'Everyday', current_balance: 42 });
   assert.ok(db.prepare("SELECT 1 FROM sqlite_master WHERE name = 'akahu_seen_accounts'").get());
+  const seenColumns = db.prepare('PRAGMA table_info(akahu_seen_accounts)').all().map((c) => c.name);
+  assert.ok(seenColumns.includes('backfilled'));
 });
 
 test('accounts synced before the hub existed count as seen and already synced', () => {
