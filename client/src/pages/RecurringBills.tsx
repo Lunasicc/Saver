@@ -7,6 +7,7 @@ import type { Account, Category, RecurringBill, RecurringCandidate, RecurringDet
 import { formatDate, formatMoney, formatMoneyWhole, ordinal } from '../lib/format';
 import { daysUntilDue, dueLabel, monthlyEquivalent } from '../lib/bills';
 import { CategoryIcon } from '../components/CategoryIcon';
+import { CategoryOptions } from '../components/CategoryOptions';
 import { EmptyState } from '../components/EmptyState';
 import { ErrorBanner } from '../components/ErrorBanner';
 import { Panel } from '../components/Panel';
@@ -226,7 +227,7 @@ export function RecurringBills() {
                           onChange={() => toggle(c)}
                           aria-label={`Track ${c.name} as a recurring bill`}
                         />
-                        <CategoryIcon name={c.category_name} color={c.category_color} size={30} />
+                        <CategoryIcon name={c.category_name} color={c.category_color} icon={c.category_icon} size={30} />
                         <div className="list-main">
                           <div className="list-title">{c.name}</div>
                           <div className="list-meta">
@@ -311,11 +312,7 @@ export function RecurringBills() {
                   Category
                   <select value={form.category_id} onChange={(e) => setForm({ ...form, category_id: e.target.value })}>
                     <option value="">None</option>
-                    {categories.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
+                    <CategoryOptions categories={categories} />
                   </select>
                 </label>
                 {accounts.length > 1 && (
@@ -364,7 +361,7 @@ export function RecurringBills() {
           <div style={{ padding: '6px 0' }}>
             {ordered.map((b) => (
               <div key={b.id} className="tx-row bill-row" style={{ opacity: b.active ? 1 : 0.5 }}>
-                <CategoryIcon name={b.category_name} color={b.category_color} />
+                <CategoryIcon name={b.category_name} color={b.category_color} icon={b.category_icon} />
                 <div className="list-main">
                   <div className="list-title">{b.name}</div>
                   <div className="list-meta">

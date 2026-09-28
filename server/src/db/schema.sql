@@ -87,6 +87,13 @@ CREATE TABLE IF NOT EXISTS dismissed_seed_rules (
   dismissed_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- Built-in categories the user deleted, so startup seeding leaves them deleted.
+-- (categories.parent_id, is_fixed and seed_key are added by db/index.js.)
+CREATE TABLE IF NOT EXISTS dismissed_seed_categories (
+  seed_key TEXT PRIMARY KEY,
+  dismissed_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- Small key/value store for app settings entered in the UI (e.g. Akahu tokens).
 CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,

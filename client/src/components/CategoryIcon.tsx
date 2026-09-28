@@ -3,12 +3,14 @@ import { iconForCategory } from '../lib/categoryIcons';
 type Props = {
   name: string | null | undefined;
   color?: string | null;
+  /** The category's chosen icon key; falls back to one matching the name. */
+  icon?: string | null;
   size?: number;
 };
 
 /** Tinted tile with the category's glyph; neutral "?" tile when uncategorized. */
-export function CategoryIcon({ name, color, size = 34 }: Props) {
-  const Glyph = iconForCategory(name);
+export function CategoryIcon({ name, color, icon, size = 34 }: Props) {
+  const Glyph = iconForCategory(name, icon);
   const tint = name && color ? color : null;
   return (
     <span

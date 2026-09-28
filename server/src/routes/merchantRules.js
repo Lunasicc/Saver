@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { db } from '../db/index.js';
+import { db, seedMerchantRules } from '../db/index.js';
 import { getSeedRules } from '../lib/seedRules.js';
 
 const router = Router();
@@ -53,14 +53,7 @@ router.delete('/:id', (req, res) => {
 router.post('/restore-defaults', (_req, res) => {
   const restored = db.prepare('SELECT COUNT(*) AS n FROM dismissed_seed_rules').get().n;
   db.prepare('DELETE FROM dismissed_seed_rules').run();
-  const insertRule = db.prepare(
-    `INSERT OR IGNORE INTO merchant_rules (pattern, match_type, merchant_name, category_id)
-     SELECT @pattern, 'contains', @merchant, id FROM categories WHERE name = @category`
-  );
-  const seed = db.transaction((rows) => {
-    for (const row of rows) insertRule.run(row);
-  });
-  seed(getSeedRules());
+  seedMerchantRules(getSeedRules(), { includeDismissed: true });
   res.json({ restored });
 });
 

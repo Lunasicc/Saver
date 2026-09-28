@@ -21,6 +21,85 @@ export function deriveMerchantName(description) {
   return s.length > 60 ? s.slice(0, 60) : s;
 }
 
+// Towns and suburbs NZ banks commonly append to card descriptions, often with no
+// space ("ACME FUELSCHRISTCHURCH"). Stripped from place names so visits to the
+// same business group together and read cleanly.
+const PLACE_SUFFIXES = [
+  'christchurch', 'auckland', 'wellington', 'hamilton', 'tauranga', 'dunedin', 'napier', 'hastings',
+  'nelson', 'rotorua', 'palmerstonnorth', 'palmerston', 'newplymouth', 'whangarei', 'invercargill',
+  'queenstown', 'wanaka', 'timaru', 'ashburton', 'blenheim', 'gisborne', 'whanganui', 'taupo', 'masterton',
+  'porirua', 'lowerhutt', 'upperhutt', 'petone', 'takapuna', 'albany', 'manukau', 'newmarket', 'ponsonby',
+  'lincoln', 'rolleston', 'halswell', 'riccarton', 'hornby', 'papanui', 'sydenham', 'addington', 'merivale',
+  'shirley', 'kaiapoi', 'rangiora', 'wigram', 'belfast', 'northlands', 'sumner', 'ferrymead', 'woolston',
+  'henderson', 'manurewa', 'papakura', 'botany', 'sylviapark', 'glenfield', 'northcote', 'onehunga', 'parnell',
+  'mtwellington', 'karori', 'johnsonville', 'kilbirnie', 'tawa', 'paraparaumu', 'frankton', 'mosgiel', 'richmond',
+];
+const SMALL_WORDS = new Set(['the', 'and', 'of', 'for', 'at', 'on', 'in', 'to']);
+
+function stripTrailingPlace(words) {
+  const last = words[words.length - 1];
+  const lower = last.toLowerCase().replace(/[^a-z]/g, '');
+  if (words.length > 1 && PLACE_SUFFIXES.includes(lower)) return words.slice(0, -1);
+  // A truncated town at the very end, e.g. "INVERCA" for Invercargill.
+  if (words.length > 1 && lower.length >= 7 && PLACE_SUFFIXES.some((p) => p.startsWith(lower) && p !== lower)) {
+    return words.slice(0, -1);
+  }
+  for (const place of PLACE_SUFFIXES) {
+    if (lower.length > place.length + 2 && lower.endsWith(place)) {
+      const kept = last.slice(0, last.length - place.length).replace(/[\s\-,.]+$/, '');
+      if (/[a-z]{3}/i.test(kept)) return [...words.slice(0, -1), kept];
+    }
+  }
+  return words;
+}
+
+/**
+ * Readable business name for summaries like "Top places": drops reference
+ * numbers, store codes and appended towns, removes a repeated payee
+ * ("ASB Insurance ASBInsurance99…" → "ASB Insurance") and softens ALL CAPS.
+ */
+export function tidyPlaceName(raw) {
+  const base = deriveMerchantName(raw);
+  let words = base
+    // Payment processors that front the real business name.
+    .replace(/^(debitsuccess|ezidebit|windcave|paymark|paypal\s*\*|sq\s*\*|sp\s*\*)\s*/i, '')
+    .split(' ')
+    // Reference numbers and store codes: "ASBInsurance99…" → "ASBInsurance", "LEEMING3J" → "LEEMING".
+    .map((w) => {
+      if ((w.match(/\d/g) || []).length >= 5) {
+        const lead = w.match(/^[a-z]+/i)?.[0] ?? '';
+        return lead.length >= 4 ? lead : '';
+      }
+      return w.replace(/^([a-z]{4,})\d{1,3}[a-z]{0,2}$/i, '$1');
+    })
+    .filter(Boolean);
+  if (words.length > 1) {
+    const last = words[words.length - 1].toLowerCase();
+    const before = normalizeForMatch(words.slice(0, -1).join(''));
+    if (last.replace(/[^a-z0-9]/g, '') === before) words = words.slice(0, -1);
+  }
+  for (let i = 0; i < 2 && words.length > 0; i++) {
+    const next = stripTrailingPlace(words);
+    if (next === words) break;
+    words = next;
+  }
+  let name = words.join(' ').trim();
+  if (!name) return base;
+  if (!/[a-z]/.test(name)) {
+    // Short tokens stay as initials (BP, KFC, ASB); everything else becomes Title Case.
+    name = name
+      .split(' ')
+      .map((w, i) => {
+        const lower = w.toLowerCase();
+        if (SMALL_WORDS.has(lower)) return i === 0 ? w.charAt(0) + lower.slice(1) : lower;
+        if (w.length <= 3 && (i === 0 || !/[AEIOU]/.test(w))) return w;
+        return w.charAt(0) + lower.slice(1);
+      })
+      .join(' ');
+  }
+  return name;
+}
+
 // Finds the best matching rule for a description: an exact normalized match
 // wins first (these are learned from the user's own corrections), otherwise
 // the longest matching "contains" rule (more specific patterns take priority).
@@ -138,6 +217,14 @@ export const DEFAULT_MERCHANT_RULES = [
   { pattern: 'tower', merchant: 'Tower Insurance', category: 'Insurance' },
   { pattern: 'aainsurance', merchant: 'AA Insurance', category: 'Insurance' },
   { pattern: 'southerncross', merchant: 'Southern Cross', category: 'Insurance' },
+  { pattern: 'asbinsurance', merchant: 'ASB Insurance', category: 'Insurance' },
+  { pattern: 'westpacinsurance', merchant: 'Westpac Insurance', category: 'Insurance' },
+  { pattern: 'kiwibankinsurance', merchant: 'Kiwibank Insurance', category: 'Insurance' },
+  { pattern: 'anzinsurance', merchant: 'ANZ Insurance', category: 'Insurance' },
+  { pattern: 'partnerslife', merchant: 'Partners Life', category: 'Insurance' },
+  { pattern: 'fidelitylife', merchant: 'Fidelity Life', category: 'Insurance' },
+  { pattern: 'nibnz', merchant: 'nib', category: 'Insurance' },
+  { pattern: 'cignalife', merchant: 'Cigna', category: 'Insurance' },
 
   // Loan repayments
   { pattern: 'loanrepayment', merchant: 'Loan Repayment', category: 'Loan Repayment' },

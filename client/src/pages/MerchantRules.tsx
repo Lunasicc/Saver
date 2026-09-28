@@ -3,6 +3,7 @@ import { ArrowCounterClockwiseIcon, BrainIcon, MagnifyingGlassIcon, RobotIcon, T
 import { api } from '../lib/api';
 import type { Category, MerchantRule } from '../lib/types';
 import { CategoryIcon } from '../components/CategoryIcon';
+import { CategoryOptions } from '../components/CategoryOptions';
 import { EmptyState } from '../components/EmptyState';
 import { ErrorBanner, SuccessNotice } from '../components/ErrorBanner';
 import { Panel } from '../components/Panel';
@@ -153,7 +154,7 @@ export function MerchantRules() {
           <div style={{ padding: '6px 0' }}>
             {visible.map((r) => (
               <div key={r.id} className="tx-row rule-row">
-                <CategoryIcon name={r.category_name} color={r.category_color} size={30} />
+                <CategoryIcon name={r.category_name} color={r.category_color} icon={r.category_icon} size={30} />
                 <div className="list-main">
                   <div className="list-title">{r.merchant_name}</div>
                   <div className="list-meta">
@@ -170,11 +171,7 @@ export function MerchantRules() {
                   value={r.category_id}
                   onChange={(e) => changeCategory(r, e.target.value)}
                 >
-                  {categories.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
+                  <CategoryOptions categories={categories} />
                 </select>
                 <button className="btn btn-icon danger" aria-label={`Delete rule ${r.pattern}`} title="Delete rule" onClick={() => remove(r)}>
                   <TrashIcon size={15} />

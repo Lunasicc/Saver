@@ -16,6 +16,7 @@ import { dayLabel, formatMoney, formatSigned, monthLong, monthRange, today } fro
 import { onDataChanged } from '../lib/events';
 import { useAccountFocus } from '../lib/accountFocus';
 import { CategoryIcon } from '../components/CategoryIcon';
+import { CategoryOptions } from '../components/CategoryOptions';
 import { EmptyState } from '../components/EmptyState';
 import { ErrorBanner, SuccessNotice } from '../components/ErrorBanner';
 import { Panel } from '../components/Panel';
@@ -215,11 +216,7 @@ export function TransactionsFeed() {
         <select aria-label="Category" value={category} onChange={(e) => setParam('category', e.target.value)}>
           <option value="">All categories</option>
           <option value="uncategorized">Uncategorized</option>
-          {sortedCategories.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
+          <CategoryOptions categories={categories} parentLabel={(n) => `All ${n}`} />
         </select>
         {accounts.length > 1 && (
           <select aria-label="Account" value={account} onChange={(e) => setFocus(e.target.value ? Number(e.target.value) : null)}>
@@ -320,7 +317,7 @@ export function TransactionsFeed() {
                     .join(' · ');
                   return (
                     <div key={t.id} className="tx-row">
-                      <CategoryIcon name={cat?.name} color={cat?.color} />
+                      <CategoryIcon name={cat?.name} color={cat?.color} icon={cat?.icon} />
                       <div className="list-main">
                         <div className="list-title">{title}</div>
                         {subtitle && <div className="list-meta">{subtitle}</div>}
@@ -332,11 +329,7 @@ export function TransactionsFeed() {
                         onChange={(e) => changeCategory(t, e.target.value)}
                       >
                         <option value="">Uncategorized</option>
-                        {sortedCategories.map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.name}
-                          </option>
-                        ))}
+                        <CategoryOptions categories={categories} />
                       </select>
                       <span className={`tx-amount amount${t.amount > 0 ? ' amount--in' : ''}`}>
                         {formatSigned(t.amount)}
@@ -473,11 +466,7 @@ function AddTransactionForm({
           Category
           <select value={form.category_id} onChange={(e) => setForm({ ...form, category_id: e.target.value })}>
             <option value="">Auto-detect</option>
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
+            <CategoryOptions categories={categories} />
           </select>
         </label>
         <button className="btn btn-primary" type="submit" disabled={saving}>

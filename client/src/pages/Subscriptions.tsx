@@ -81,7 +81,7 @@ export function Subscriptions() {
           <div style={{ padding: '6px 0' }}>
             {report.subscriptions.map((s) => (
               <div key={s.merchant} className="tx-row sub-row">
-                <CategoryIcon name={s.category_name} color={s.category_color} />
+                <CategoryIcon name={s.category_name} color={s.category_color} icon={s.category_icon} />
                 <div className="list-main">
                   <div className="list-title">{s.merchant}</div>
                   <div className="list-meta">

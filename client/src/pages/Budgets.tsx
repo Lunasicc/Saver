@@ -9,6 +9,7 @@ import { celebrate } from '../lib/celebrate';
 import { onDataChanged } from '../lib/events';
 import { useAccountFocus, withAccount } from '../lib/accountFocus';
 import { CategoryIcon } from '../components/CategoryIcon';
+import { CategoryOptions } from '../components/CategoryOptions';
 import { EmptyState } from '../components/EmptyState';
 import { ErrorBanner } from '../components/ErrorBanner';
 import { MonthStepper } from '../components/MonthStepper';
@@ -266,7 +267,7 @@ export function Budgets() {
                             onChange={() => toggle(s)}
                             aria-label={`Include ${s.category_name} budget`}
                           />
-                          <CategoryIcon name={s.category_name} color={s.category_color} size={30} />
+                          <CategoryIcon name={s.category_name} color={s.category_color} icon={s.category_icon} size={30} />
                           <div className="list-main">
                             <div className="list-title">{s.category_name}</div>
                             <div className="list-meta">
@@ -364,7 +365,7 @@ export function Budgets() {
               const isEditing = editing?.id === b.id;
               return (
                 <div key={b.id} className="list-row budget-row">
-                  <CategoryIcon name={b.category_name} color={b.category_color} />
+                  <CategoryIcon name={b.category_name} color={b.category_color} icon={b.category_icon} />
                   <div className="list-main">
                     <div className="row" style={{ justifyContent: 'space-between', flexWrap: 'nowrap' }}>
                       <span className="list-title">{b.category_name}</span>
@@ -436,7 +437,7 @@ export function Budgets() {
             <div className="list">
               {unbudgetedSpend.map((s) => (
                 <div key={s.category_id} className="list-row">
-                  <CategoryIcon name={s.name} color={s.color} size={30} />
+                  <CategoryIcon name={s.name} color={s.color} icon={s.icon} size={30} />
                   <div className="list-main">
                     <div className="list-title">{s.name}</div>
                   </div>
@@ -460,11 +461,7 @@ export function Budgets() {
               Category
               <select value={draft.category_id} onChange={(e) => setDraft({ ...draft, category_id: e.target.value })}>
                 <option value="">Select…</option>
-                {unbudgetedCategories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
+                <CategoryOptions categories={unbudgetedCategories} />
               </select>
             </label>
             <label>

@@ -196,13 +196,17 @@ export function suggestBudgets({ month, lookback = 3, account = null } = {}) {
   const placeholders = Object.keys(monthParams).map((k) => `@${k}`).join(', ');
   const rows = db
     .prepare(
-      `SELECT c.id AS category_id, c.name, c.icon, c.color,
+      `SELECT COALESCE(p.id, c.id) AS category_id, COALESCE(p.name, c.name) AS name,
+              COALESCE(p.icon, c.icon) AS icon, COALESCE(p.color, c.color) AS color,
+              COALESCE(p.seed_key, c.seed_key) AS seed_key,
               strftime('%Y-%m', t.date) AS month,
               COALESCE(SUM(-t.amount), 0) AS total
        FROM transactions t JOIN categories c ON c.id = t.category_id
-       WHERE t.amount < 0 AND c.is_income = 0 AND strftime('%Y-%m', t.date) IN (${placeholders})
+       LEFT JOIN categories p ON p.id = c.parent_id
+       WHERE t.amount < 0 AND COALESCE(p.is_income, c.is_income) = 0
+         AND strftime('%Y-%m', t.date) IN (${placeholders})
          AND ${accountClause('t.account_id')}
-       GROUP BY c.id, month`
+       GROUP BY COALESCE(p.id, c.id), month`
     )
     .all({ ...monthParams, account });
 
@@ -219,6 +223,7 @@ export function suggestBudgets({ month, lookback = 3, account = null } = {}) {
       byCategory.set(row.category_id, {
         category_id: row.category_id,
         name: row.name,
+        seed_key: row.seed_key,
         icon: row.icon,
         color: row.color,
         monthly: new Map(),
@@ -255,7 +260,7 @@ export function suggestBudgets({ month, lookback = 3, account = null } = {}) {
       existing_amount: existing.has(entry.category_id) ? existing.get(entry.category_id) : null,
       // Sporadic or non-spend categories are returned but not pre-selected.
       recommended:
-        !NON_SPEND_CATEGORIES.has(entry.name) && monthsWithSpend >= Math.ceil(monthsInWindow.length / 2),
+        !NON_SPEND_CATEGORIES.has(entry.seed_key) && monthsWithSpend >= Math.ceil(monthsInWindow.length / 2),
     });
   }
 

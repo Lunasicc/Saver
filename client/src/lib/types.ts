@@ -20,6 +20,13 @@ export type Category = {
   icon: string;
   color: string;
   is_income: number;
+  /** Set on sub-categories: the top-level category they sit under. */
+  parent_id: number | null;
+  /** Bills and commitments, left out of everyday-spending views. */
+  is_fixed: number;
+  /** Which built-in this started as, if any. */
+  seed_key: string | null;
+  transaction_count?: number;
 };
 
 export type Transaction = {
@@ -91,7 +98,12 @@ export type NetWorthSnapshot = {
   net_worth: number;
 };
 
-export type MonthlyCategoryBreakdown = CategorySpend & { count: number; pct: number };
+export type MonthlyCategoryBreakdown = CategorySpend & {
+  count: number;
+  pct: number;
+  is_fixed: number;
+  children: (CategorySpend & { count: number })[];
+};
 
 export type MonthlyMerchantBreakdown = {
   merchant: string;
@@ -110,6 +122,76 @@ export type MonthlySnapshot = {
   categories: MonthlyCategoryBreakdown[];
   uncategorized: { total: number; count: number };
   merchants: MonthlyMerchantBreakdown[];
+  /** Spending on bills and commitments vs everything else. */
+  split: { fixed: number; everyday: number };
+};
+
+type CategoryRef = {
+  category_id: number | null;
+  category_name: string | null;
+  category_color: string | null;
+  category_icon: string | null;
+};
+
+export type TopPlace = CategoryRef & {
+  merchant: string;
+  total: number;
+  count: number;
+  average: number;
+  share: number;
+  last_date: string;
+};
+
+export type TopSpend = CategoryRef & {
+  id: number;
+  date: string;
+  merchant: string;
+  description: string;
+  amount: number;
+};
+
+export type TopSpending = {
+  month: string;
+  everydayTotal: number;
+  everydayCount: number;
+  places: TopPlace[];
+  placeCount: number;
+  spends: TopSpend[];
+  excluded: { total: number; count: number; categories: { name: string; total: number }[] };
+};
+
+export type DaySpend = {
+  date: string;
+  total: number;
+  everyday: number;
+  fixed: number;
+  count: number;
+  top: { merchant: string; amount: number } | null;
+};
+
+export type DailySpending = {
+  month: string;
+  previousMonth: string;
+  days: DaySpend[];
+  previous: DaySpend[];
+};
+
+export type CategoryHistoryEntry = {
+  category_id: number;
+  name: string;
+  color: string;
+  icon: string;
+  is_fixed: number;
+  totals: number[];
+  current: number;
+  usual: number | null;
+};
+
+export type CategoryHistory = {
+  month: string;
+  months: string[];
+  monthsOfHistory: number;
+  categories: CategoryHistoryEntry[];
 };
 
 export type MerchantRule = {

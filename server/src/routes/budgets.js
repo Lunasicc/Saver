@@ -73,24 +73,28 @@ router.get('/', (req, res) => {
     .all(month);
 
   // Budgets are shared across accounts; only the spend against them follows the focus.
+  // A top-level category's budget also counts spending in its sub-categories.
   const spendRows = db
     .prepare(
-      `SELECT category_id, COALESCE(SUM(-amount), 0) AS spent
-       FROM transactions
-       WHERE strftime('%Y-%m', date) = @month AND amount < 0 AND ${accountClause()}
-       GROUP BY category_id`
+      `SELECT t.category_id, c.parent_id, COALESCE(SUM(-t.amount), 0) AS spent
+       FROM transactions t JOIN categories c ON c.id = t.category_id
+       WHERE strftime('%Y-%m', t.date) = @month AND t.amount < 0 AND ${accountClause('t.account_id')}
+       GROUP BY t.category_id`
     )
     .all({ month, account });
+  const spendByCategory = {};
+  for (const r of spendRows) {
+    spendByCategory[r.category_id] = (spendByCategory[r.category_id] || 0) + r.spent;
+    if (r.parent_id) spendByCategory[r.parent_id] = (spendByCategory[r.parent_id] || 0) + r.spent;
+  }
   // Round to cents: amounts are stored as REAL, so a summed total can land a
   // fraction of a cent above the budget and falsely report "over budget".
-  const spendByCategory = Object.fromEntries(
-    spendRows.map((r) => [r.category_id, Math.round(r.spent * 100) / 100])
-  );
+  const cents = (n) => Math.round((n || 0) * 100) / 100;
 
   res.json(
     budgets.map((b) => ({
       ...b,
-      spent: spendByCategory[b.category_id] || 0,
+      spent: cents(spendByCategory[b.category_id]),
     }))
   );
 });

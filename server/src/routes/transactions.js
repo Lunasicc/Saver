@@ -63,7 +63,8 @@ router.get('/', (req, res) => {
     if (category_id === 'uncategorized') {
       clauses.push('category_id IS NULL');
     } else {
-      clauses.push('category_id = @category_id');
+      // A top-level category includes its sub-categories.
+      clauses.push('category_id IN (SELECT id FROM categories WHERE id = @category_id OR parent_id = @category_id)');
       params.category_id = category_id;
     }
   }

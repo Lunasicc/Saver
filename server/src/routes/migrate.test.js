@@ -47,6 +47,9 @@ old.exec(`
     is_income INTEGER NOT NULL DEFAULT 0
   );
   INSERT INTO categories (id, name) VALUES (1, 'Other'), (2, 'Transfers & Fees');
+  INSERT INTO categories (id, name, icon) VALUES (3, 'Groceries', '🛒'), (4, 'Housing', '🏠'), (5, 'Coffee', '☕');
+  UPDATE categories SET icon = '🔁' WHERE id = 2;
+  UPDATE categories SET icon = '🏡' WHERE id = 4;
   INSERT INTO transactions (account_id, date, description, amount, category_id, external_id) VALUES
     (1, '2025-03-03', 'TFR TO Sharesies Nom SA1', -100, 1, 'inv_other'),
     (1, '2025-03-04', 'KIWISAVER CONTRIBUTION', -50, NULL, 'inv_uncat'),
@@ -92,6 +95,18 @@ test('accounts synced before the hub existed count as seen and already synced', 
   ]);
   const lastSync = db.prepare("SELECT value FROM settings WHERE key = 'akahu_last_sync_at'").get();
   assert.equal(lastSync?.value, '2025-03-02T08:30:00Z');
+});
+
+test('existing categories become built-ins with bill flags and icon keys', () => {
+  const row = (name) => db.prepare('SELECT icon, is_fixed, seed_key, parent_id FROM categories WHERE name = ?').get(name);
+  assert.deepEqual(row('Groceries'), { icon: 'cart', is_fixed: 0, seed_key: 'Groceries', parent_id: null });
+  assert.deepEqual(row('Transfers & Fees'), { icon: 'arrows', is_fixed: 1, seed_key: 'Transfers & Fees', parent_id: null });
+  assert.equal(row('Housing').icon, '🏡', 'an icon the person picked is left alone');
+  assert.equal(row('Housing').is_fixed, 1);
+  assert.equal(row('Other').icon, '💰', 'unknown icons are left for the app to fall back on');
+  assert.deepEqual(row('Coffee'), { icon: '☕', is_fixed: 0, seed_key: null, parent_id: null });
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM categories WHERE seed_key = 'Groceries'").get().n, 1);
+  assert.equal(row('Dining Out').icon, 'fork-knife', 'missing built-ins are added');
 });
 
 test('investment transactions filed under Other or uncategorized move to Investments & Finances', () => {

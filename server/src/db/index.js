@@ -56,46 +56,85 @@ if (!hadSeenAccounts) db.exec(`
     WHERE EXISTS (SELECT 1 FROM accounts WHERE akahu_account_id IS NOT NULL);
 `);
 
-const DEFAULT_CATEGORIES = [
-  { name: 'Groceries', icon: '🛒', color: '#22c55e' },
-  { name: 'Dining Out', icon: '🍔', color: '#f97316' },
-  { name: 'Transport', icon: '🚗', color: '#3b82f6' },
-  { name: 'Housing', icon: '🏠', color: '#8b5cf6' },
-  { name: 'Utilities', icon: '💡', color: '#eab308' },
-  { name: 'Entertainment', icon: '🎬', color: '#ec4899' },
-  { name: 'Health', icon: '🩺', color: '#14b8a6' },
-  { name: 'Shopping', icon: '🛍️', color: '#f43f5e' },
-  { name: 'Subscriptions', icon: '📺', color: '#a855f7' },
-  { name: 'Travel', icon: '✈️', color: '#06b6d4' },
-  { name: 'Insurance', icon: '🛡️', color: '#0ea5e9' },
-  { name: 'Loan Repayment', icon: '🏦', color: '#f59e0b' },
-  { name: 'Investments & Finances', icon: '📈', color: '#6366f1' },
-  { name: 'Transfers & Fees', icon: '🔁', color: '#94a3b8' },
-  { name: 'Income', icon: '💵', color: '#10b981', is_income: 1 },
-  { name: 'Other', icon: '🔖', color: '#64748b' },
+// Categories: users can add their own and nest one level of sub-categories.
+// `seed_key` remembers which built-in a row started as, so renaming a built-in
+// doesn't make it reappear, and deleting one keeps it deleted.
+const categoryColumns = new Set(db.prepare('PRAGMA table_info(categories)').all().map((c) => c.name));
+if (!categoryColumns.has('parent_id')) db.exec('ALTER TABLE categories ADD COLUMN parent_id INTEGER REFERENCES categories(id)');
+if (!categoryColumns.has('is_fixed')) db.exec('ALTER TABLE categories ADD COLUMN is_fixed INTEGER NOT NULL DEFAULT 0');
+if (!categoryColumns.has('seed_key')) db.exec('ALTER TABLE categories ADD COLUMN seed_key TEXT');
+db.exec('CREATE INDEX IF NOT EXISTS idx_categories_parent ON categories(parent_id)');
+
+/** Built-in categories. `fixed` ones are bills and commitments rather than everyday spending. */
+export const DEFAULT_CATEGORIES = [
+  { name: 'Groceries', icon: 'cart', color: '#22c55e' },
+  { name: 'Dining Out', icon: 'fork-knife', color: '#f97316' },
+  { name: 'Transport', icon: 'car', color: '#3b82f6' },
+  { name: 'Housing', icon: 'house', color: '#8b5cf6', fixed: true },
+  { name: 'Utilities', icon: 'lightning', color: '#eab308', fixed: true },
+  { name: 'Entertainment', icon: 'film', color: '#ec4899' },
+  { name: 'Health', icon: 'heartbeat', color: '#14b8a6' },
+  { name: 'Shopping', icon: 'bag', color: '#f43f5e' },
+  { name: 'Subscriptions', icon: 'repeat', color: '#a855f7', fixed: true },
+  { name: 'Travel', icon: 'airplane', color: '#06b6d4' },
+  { name: 'Insurance', icon: 'shield', color: '#0ea5e9', fixed: true },
+  { name: 'Loan Repayment', icon: 'bank', color: '#f59e0b', fixed: true },
+  { name: 'Investments & Finances', icon: 'chart-up', color: '#6366f1', fixed: true },
+  { name: 'Transfers & Fees', icon: 'arrows', color: '#94a3b8', fixed: true },
+  { name: 'Income', icon: 'coins', color: '#10b981', is_income: 1 },
+  { name: 'Other', icon: 'dots', color: '#64748b' },
 ];
 
-const insertCategory = db.prepare(
-  'INSERT OR IGNORE INTO categories (name, icon, color, is_income) VALUES (@name, @icon, @color, @is_income)'
-);
-const seedCategories = db.transaction((rows) => {
-  for (const row of rows) insertCategory.run({ is_income: 0, ...row });
-});
-seedCategories(DEFAULT_CATEGORIES);
+// Icons used to be emoji; switch untouched built-ins over to the icon keys the app draws.
+const LEGACY_EMOJI = {
+  Groceries: '🛒', 'Dining Out': '🍔', Transport: '🚗', Housing: '🏠', Utilities: '💡', Entertainment: '🎬',
+  Health: '🩺', Shopping: '🛍️', Subscriptions: '📺', Travel: '✈️', Insurance: '🛡️', 'Loan Repayment': '🏦',
+  'Investments & Finances': '📈', 'Transfers & Fees': '🔁', Income: '💵', Other: '🔖',
+};
 
+db.transaction(() => {
+  if (!categoryColumns.has('seed_key')) {
+    const adopt = db.prepare('UPDATE categories SET seed_key = name WHERE name = ? AND seed_key IS NULL');
+    for (const c of DEFAULT_CATEGORIES) adopt.run(c.name);
+  }
+  if (!categoryColumns.has('is_fixed')) {
+    const markFixed = db.prepare('UPDATE categories SET is_fixed = 1 WHERE seed_key = ?');
+    for (const c of DEFAULT_CATEGORIES) if (c.fixed) markFixed.run(c.name);
+  }
+  const iconUpdate = db.prepare('UPDATE categories SET icon = ? WHERE seed_key = ? AND icon = ?');
+  for (const c of DEFAULT_CATEGORIES) iconUpdate.run(c.icon, c.name, LEGACY_EMOJI[c.name]);
+
+  const hasSeed = db.prepare('SELECT 1 FROM categories WHERE seed_key = ?');
+  const isCategoryDismissed = db.prepare('SELECT 1 FROM dismissed_seed_categories WHERE seed_key = ?');
+  const insertCategory = db.prepare(
+    `INSERT OR IGNORE INTO categories (name, icon, color, is_income, is_fixed, seed_key)
+     VALUES (@name, @icon, @color, @is_income, @is_fixed, @name)`
+  );
+  const adoptByName = db.prepare('UPDATE categories SET seed_key = ? WHERE name = ? AND seed_key IS NULL');
+  for (const c of DEFAULT_CATEGORIES) {
+    if (hasSeed.get(c.name) || isCategoryDismissed.get(c.name)) continue;
+    const info = insertCategory.run({ name: c.name, icon: c.icon, color: c.color, is_income: c.is_income ?? 0, is_fixed: c.fixed ? 1 : 0 });
+    if (!info.changes) adoptByName.run(c.name, c.name);
+  }
+})();
+
+// Seed rules name a built-in category; custom rules may name one of the user's own.
 const insertRule = db.prepare(
   `INSERT OR IGNORE INTO merchant_rules (pattern, match_type, merchant_name, category_id)
-   SELECT @pattern, 'contains', @merchant, id FROM categories WHERE name = @category`
+   SELECT @pattern, 'contains', @merchant, id FROM categories
+   WHERE seed_key = @category OR name = @category
+   ORDER BY (seed_key = @category) DESC LIMIT 1`
 );
 const isDismissed = db.prepare('SELECT 1 FROM dismissed_seed_rules WHERE pattern = ?');
-const seedRules = db.transaction((rows) => {
+
+/** Inserts seed rules that don't exist yet. Deleted ones stay deleted unless `includeDismissed`. */
+export const seedMerchantRules = db.transaction((rows, { includeDismissed = false } = {}) => {
   for (const row of rows) {
-    // Respect rules the user deleted in the UI instead of resurrecting them.
-    if (isDismissed.get(row.pattern)) continue;
-    insertRule.run(row);
+    if (!includeDismissed && isDismissed.get(row.pattern)) continue;
+    insertRule.run({ pattern: row.pattern, merchant: row.merchant, category: row.category });
   }
 });
-seedRules(getSeedRules());
+seedMerchantRules(getSeedRules());
 
 // Investments & Finances arrived after people had already filed things like
 // Sharesies top-ups under "Other" (or left them uncategorized). Move those over

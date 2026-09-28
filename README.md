@@ -10,17 +10,26 @@ enter everything by hand.
 
 ## Features
 
-- **Overview**: this month's spending with a budget pace bar, money in / net /
-  net worth, alerts for uncategorized spending and over-budget categories,
-  spending by category and by business, a 12-month cash-flow chart and
-  upcoming bills.
+- **Overview**: this month's spending split into everyday spending and bills &
+  commitments, an everyday spending pace chart against last month, money in /
+  net / net worth / budgets, and alerts for uncategorized spending and
+  over-budget categories. Below that: a donut of where the money went (expand
+  a category to see its sub-categories), **Top spending** (the places you
+  spend most and your biggest single purchases, leaving out rent, loans,
+  power and other bills), a daily spending heatmap with weekday averages,
+  each category compared with its usual month, a 12-month cash-flow chart
+  with the net, and upcoming bills.
 - **Automatic categorization**: more than 100 built-in keyword rules for
   common NZ businesses (supermarkets, fuel, power, telcos, streaming,
   investing and KiwiSaver platforms like Sharesies, and more).
   When you re-categorize a transaction, Saver learns it for next time.
+- **Your own categories**: add, rename, recolour or delete categories and
+  give any of them sub-categories (for example Dining Out › Coffee). Choose an
+  icon and colour, and whether a category counts as a bill or commitment.
+  Sub-categories roll up into their parent on the Overview and in budgets.
 - **Transactions**: a searchable feed you can filter by month, category or
-  account, with inline re-categorizing, CSV import with column mapping, and a
-  rules editor.
+  account, with inline re-categorizing, CSV import with column mapping, a
+  categories editor and a rules editor.
 - **Planning**: monthly budgets (with suggestions based on your own history),
   recurring bill detection and a subscription audit.
 - **Focus on one account**: with more than one account, the switcher in the
@@ -116,6 +125,18 @@ banking, or **Track by hand** for cash and other accounts.
   never sent anywhere except to Akahu, and never shown again in the browser.
 
 ## Customizing
+
+### Categories and sub-categories
+
+Open **Transactions › Categories** to shape categories around your life. Add
+a sub-category from any top-level category's row. Deleting a sub-category moves
+its transactions, rules and bills up to the parent; deleting a top-level
+category leaves its transactions uncategorized.
+
+Switch on **Counts as a bill or commitment** for anything you pay regularly
+and can't easily change (rent, loans, insurance, power). Those are left out
+of Top spending, so the places you actually choose to spend stand out. Tracked
+recurring bills are left out too, whatever their category.
 
 ### Your own local businesses
 
