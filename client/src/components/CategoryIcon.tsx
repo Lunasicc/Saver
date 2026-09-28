@@ -1,3 +1,4 @@
+import { createElement } from 'react';
 import { iconForCategory } from '../lib/categoryIcons';
 
 type Props = {
@@ -10,7 +11,6 @@ type Props = {
 
 /** Tinted tile with the category's glyph; neutral "?" tile when uncategorized. */
 export function CategoryIcon({ name, color, icon, size = 34 }: Props) {
-  const Glyph = iconForCategory(name, icon);
   const tint = name && color ? color : null;
   return (
     <span
@@ -23,7 +23,7 @@ export function CategoryIcon({ name, color, icon, size = 34 }: Props) {
         color: tint ?? 'var(--warning)',
       }}
     >
-      <Glyph size={Math.round(size * 0.5)} weight="duotone" />
+      {createElement(iconForCategory(name, icon), { size: Math.round(size * 0.5), weight: 'duotone' })}
     </span>
   );
 }
